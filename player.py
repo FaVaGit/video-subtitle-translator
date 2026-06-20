@@ -292,7 +292,7 @@ class VLCPlayer(ttk.Frame):
     def _open_style_dialog(self):
         dlg = tk.Toplevel(self)
         dlg.title("Subtitle Style Settings")
-        dlg.geometry("460x380")
+        dlg.geometry("460x480")
         dlg.resizable(False, False)
         dlg.transient(self.winfo_toplevel())
 
@@ -432,17 +432,25 @@ class VLCPlayer(ttk.Frame):
         # Disable VLC SPU (subtitle processing unit)
         self.after(300, lambda: self._player.video_set_spu(-1) if self._player else None)
 
-        # Auto-discover SRT files in the same directory
-        self._auto_discover_srt(os.path.dirname(video_path))
+        # Auto-discover SRT files matching the video name
+        self._auto_discover_srt(video_path)
 
         self._play()
 
-    def _auto_discover_srt(self, folder: str):
-        """Scan folder for .srt files and pre-load them all."""
+    def _auto_discover_srt(self, video_path: str):
+        """Find .srt files in the same folder whose name starts with the video stem.
+
+        E.g. for 'MyVideo.mp4', loads 'MyVideo_en.srt', 'MyVideo_it.srt', etc.
+        """
+        folder = os.path.dirname(video_path)
         if not os.path.isdir(folder):
             return
+        video_stem = Path(video_path).stem
         srt_files = sorted(Path(folder).glob("*.srt"))
         for srt in srt_files:
+            # Only load SRTs whose name starts with the video name
+            if not srt.stem.startswith(video_stem):
+                continue
             srt_str = str(srt)
             # Skip already loaded
             if srt_str in self._srt_paths.values():
@@ -450,9 +458,12 @@ class VLCPlayer(ttk.Frame):
             entries = parse_srt(srt_str)
             if not entries:
                 continue
-            stem = srt.stem
-            parts = stem.rsplit("_", 1)
-            label = parts[-1] if len(parts) > 1 else stem
+            # Extract language label: "MyVideo_en" → "en"
+            suffix = srt.stem[len(video_stem):]
+            if suffix.startswith("_") and len(suffix) > 1:
+                label = suffix[1:]  # strip leading underscore
+            else:
+                label = srt.stem
             if label in self._srt_files:
                 label = srt.name
             self._srt_files[label] = entries
@@ -462,20 +473,38 @@ class VLCPlayer(ttk.Frame):
         values = ["— none —"] + list(self._srt_files.keys())
         self._lang_combo.configure(values=values)
 
+        # Auto-select the first subtitle if none selected yet
+        if not self._current_sub_label and self._srt_files:
+            first = list(self._srt_files.keys())[0]
+            self.var_sub_lang.set(first)
+            self._current_sub_label = first
+
     def load_subtitle(self, srt_path: str):
-        """Load an SRT file and auto-discover other SRT files in the same folder."""
+        """Load an SRT file and auto-discover sibling SRT files with the same base name."""
         if not os.path.isfile(srt_path):
             return
 
-        # Auto-discover all SRT files in the same folder first
-        self._auto_discover_srt(os.path.dirname(srt_path))
+        # If we have a current video loaded, discover SRTs matching that video name
+        if self._current_video:
+            self._auto_discover_srt(self._current_video)
 
-        # Determine label for the explicitly loaded file
-        stem = Path(srt_path).stem
-        parts = stem.rsplit("_", 1)
-        label = parts[-1] if len(parts) > 1 else stem
+        # Make sure this specific file is loaded even if it didn't match video stem
+        srt_str = os.path.normpath(srt_path)
+        if srt_str not in [os.path.normpath(p) for p in self._srt_paths.values()]:
+            entries = parse_srt(srt_path)
+            if entries:
+                stem = Path(srt_path).stem
+                parts = stem.rsplit("_", 1)
+                label = parts[-1] if len(parts) > 1 else stem
+                if label in self._srt_files:
+                    label = Path(srt_path).name
+                self._srt_files[label] = entries
+                self._srt_paths[label] = srt_path
+                values = ["— none —"] + list(self._srt_files.keys())
+                self._lang_combo.configure(values=values)
 
-        # Find which label corresponds to this path
+        # Find which label corresponds to this path and select it
+        label = Path(srt_path).stem
         for lbl, path in self._srt_paths.items():
             if os.path.normpath(path) == os.path.normpath(srt_path):
                 label = lbl
