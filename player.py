@@ -290,13 +290,42 @@ class VLCPlayer(ttk.Frame):
     # ──────────────────────────────────────────────────────────────────
 
     def _open_style_dialog(self):
+        # Singleton: if already open, just bring to front
+        if hasattr(self, "_style_dlg") and self._style_dlg:
+            try:
+                if self._style_dlg.winfo_exists():
+                    self._style_dlg.lift()
+                    self._style_dlg.focus_force()
+                    return
+            except Exception:
+                pass
+            self._style_dlg = None
+
         dlg = tk.Toplevel(self)
+        self._style_dlg = dlg
         dlg.title("Subtitle Style Settings")
-        dlg.geometry("460x480")
-        dlg.resizable(False, False)
         dlg.transient(self.winfo_toplevel())
+        dlg.protocol("WM_DELETE_WINDOW", self._close_style_dlg)
 
         pad = dict(padx=10, pady=5)
+
+        # Helper: apply settings live to subtitle widgets
+        def apply_live(*_args):
+            try:
+                family = var_font.get()
+                size = var_size.get()
+            except Exception:
+                return
+            self._sub_font_family = family
+            self._sub_font_size = size
+            self._overlay_label.configure(
+                font=(family, size), fg=self._sub_fg, bg=self._sub_bg,
+            )
+            self._sub_panel_text.configure(
+                font=(family, size), fg=self._sub_fg,
+            )
+            preview.configure(font=(family, size), fg=self._sub_fg, bg=self._sub_bg)
+            self._last_sub_text = ""
 
         # ── Font ──────────────────────────────────────────────────────
         font_frame = ttk.LabelFrame(dlg, text="Font", padding=8)
@@ -304,46 +333,48 @@ class VLCPlayer(ttk.Frame):
 
         ttk.Label(font_frame, text="Family:").grid(row=0, column=0, sticky="w")
         var_font = tk.StringVar(value=self._sub_font_family)
-        font_families = ["Segoe UI", "Arial", "Helvetica", "Consolas", "Courier New",
-                         "Comic Sans MS", "Georgia", "Verdana", "Tahoma", "Trebuchet MS"]
-        ttk.Combobox(font_frame, textvariable=var_font,
-                     values=font_families, width=18).grid(row=0, column=1, padx=4)
+        font_combo = ttk.Combobox(
+            font_frame, textvariable=var_font, width=18,
+            values=["Segoe UI", "Arial", "Helvetica", "Consolas",
+                    "Courier New", "Georgia", "Verdana", "Tahoma"],
+        )
+        font_combo.grid(row=0, column=1, padx=4)
+        font_combo.bind("<<ComboboxSelected>>", apply_live)
+        var_font.trace_add("write", apply_live)
 
         ttk.Label(font_frame, text="Size:").grid(row=0, column=2, sticky="w", padx=(12, 0))
         var_size = tk.IntVar(value=self._sub_font_size)
-        ttk.Spinbox(font_frame, from_=8, to=48, textvariable=var_size, width=5).grid(row=0, column=3, padx=4)
+        ttk.Spinbox(font_frame, from_=8, to=48, textvariable=var_size,
+                     width=5, command=apply_live).grid(row=0, column=3, padx=4)
+        var_size.trace_add("write", apply_live)
 
         # ── Colours ──────────────────────────────────────────────────
         color_frame = ttk.LabelFrame(dlg, text="Colours", padding=8)
         color_frame.pack(fill="x", **pad)
 
-        # Text colour
-        var_fg = tk.StringVar(value=self._sub_fg)
         ttk.Label(color_frame, text="Text:").grid(row=0, column=0, sticky="w")
         fg_swatch = tk.Label(color_frame, bg=self._sub_fg, width=4, relief="sunken")
         fg_swatch.grid(row=0, column=1, padx=4)
 
         def pick_fg():
-            color = colorchooser.askcolor(color=var_fg.get(), title="Text colour", parent=dlg)
+            color = colorchooser.askcolor(color=self._sub_fg, title="Text colour", parent=dlg)
             if color[1]:
-                var_fg.set(color[1])
+                self._sub_fg = color[1]
                 fg_swatch.configure(bg=color[1])
-                preview.configure(fg=color[1])
+                apply_live()
 
         ttk.Button(color_frame, text="Pick…", command=pick_fg).grid(row=0, column=2, padx=4)
 
-        # Background colour
-        var_bg = tk.StringVar(value=self._sub_bg)
         ttk.Label(color_frame, text="Background:").grid(row=1, column=0, sticky="w", pady=(4, 0))
         bg_swatch = tk.Label(color_frame, bg=self._sub_bg, width=4, relief="sunken")
         bg_swatch.grid(row=1, column=1, padx=4, pady=(4, 0))
 
         def pick_bg():
-            color = colorchooser.askcolor(color=var_bg.get(), title="Background colour", parent=dlg)
+            color = colorchooser.askcolor(color=self._sub_bg, title="Background colour", parent=dlg)
             if color[1]:
-                var_bg.set(color[1])
+                self._sub_bg = color[1]
                 bg_swatch.configure(bg=color[1])
-                preview.configure(bg=color[1])
+                apply_live()
 
         ttk.Button(color_frame, text="Pick…", command=pick_bg).grid(row=1, column=2, padx=4, pady=(4, 0))
 
@@ -353,8 +384,12 @@ class VLCPlayer(ttk.Frame):
 
         ttk.Label(pos_frame, text="Vertical:").pack(side="left")
         var_pos_y = tk.DoubleVar(value=self._overlay_pos_y)
+
+        def on_pos(*_):
+            self._overlay_pos_y = var_pos_y.get()
+
         ttk.Scale(pos_frame, from_=0.1, to=1.0, variable=var_pos_y,
-                  orient="horizontal", length=200).pack(side="left", padx=8)
+                  orient="horizontal", length=200, command=on_pos).pack(side="left", padx=8)
         ttk.Label(pos_frame, text="↑ top    ↓ bottom").pack(side="left", foreground="gray")
 
         # ── Preview ──────────────────────────────────────────────────
@@ -368,43 +403,16 @@ class VLCPlayer(ttk.Frame):
         )
         preview.pack(fill="x")
 
-        # Live preview on font/size change
-        def update_preview(*_):
+        # ── Close ────────────────────────────────────────────────────
+        ttk.Button(dlg, text="Close", command=self._close_style_dlg).pack(pady=8)
+
+    def _close_style_dlg(self):
+        if hasattr(self, "_style_dlg") and self._style_dlg:
             try:
-                preview.configure(font=(var_font.get(), var_size.get()))
+                self._style_dlg.destroy()
             except Exception:
                 pass
-
-        var_font.trace_add("write", update_preview)
-        var_size.trace_add("write", update_preview)
-
-        # ── Buttons ──────────────────────────────────────────────────
-        btn_row = ttk.Frame(dlg)
-        btn_row.pack(fill="x", padx=10, pady=10)
-
-        def apply_and_close():
-            self._sub_font_family = var_font.get()
-            self._sub_font_size = var_size.get()
-            self._sub_fg = var_fg.get()
-            self._sub_bg = var_bg.get()
-            self._overlay_pos_y = var_pos_y.get()
-
-            # Apply to overlay
-            self._overlay_label.configure(
-                font=(self._sub_font_family, self._sub_font_size),
-                fg=self._sub_fg, bg=self._sub_bg,
-            )
-            # Apply to panel
-            self._sub_panel_text.configure(
-                font=(self._sub_font_family, self._sub_font_size),
-                fg=self._sub_fg,
-            )
-            # Force re-render
-            self._last_sub_text = ""
-            dlg.destroy()
-
-        ttk.Button(btn_row, text="✓ Apply", command=apply_and_close).pack(side="right", padx=4)
-        ttk.Button(btn_row, text="Cancel", command=dlg.destroy).pack(side="right", padx=4)
+        self._style_dlg = None
 
     # ──────────────────────────────────────────────────────────────────
     # Public API
