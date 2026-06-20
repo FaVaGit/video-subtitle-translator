@@ -4,3 +4,4 @@ onnxruntime-directml>=1.17.0
 transformers>=4.36.0
 optimum>=1.16.0
 langdetect>=1.0.9
+python-vlc>=3.0.0

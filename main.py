@@ -14,6 +14,7 @@ from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 
 from engine import SubtitleEngine
+from player import VLCPlayer, VLC_AVAILABLE
 
 # ──────────────────────────────────────────────────────────────────────
 # Default paths
@@ -73,8 +74,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Video Subtitle Translator")
-        self.geometry("960x740")
-        self.minsize(780, 600)
+        self.geometry("1100x800")
+        self.minsize(850, 650)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.engine: SubtitleEngine | None = None
@@ -92,8 +93,33 @@ class App(tk.Tk):
     def _build_ui(self):
         pad = dict(padx=8, pady=4)
 
+        # ── Tabbed interface ──────────────────────────────────────────
+        self._notebook = ttk.Notebook(self)
+        self._notebook.pack(fill="both", expand=True, padx=4, pady=4)
+
+        # Tab 1: Transcription workflow
+        self._tab_transcribe = ttk.Frame(self._notebook)
+        self._notebook.add(self._tab_transcribe, text="  🎬 Transcribe  ")
+
+        # Tab 2: VLC Player
+        self._tab_player = ttk.Frame(self._notebook)
+        self._notebook.add(self._tab_player, text="  ▶ Player  ")
+
+        # Build each tab
+        self._build_transcribe_tab(pad)
+        self._build_player_tab()
+
+    def _build_player_tab(self):
+        """Build the embedded VLC player tab."""
+        self._vlc_player = VLCPlayer(self._tab_player)
+        self._vlc_player.pack(fill="both", expand=True)
+
+    def _build_transcribe_tab(self, pad):
+        """Build the transcription workflow tab."""
+        parent = self._tab_transcribe
+
         # ── File selection ────────────────────────────────────────────
-        file_frame = ttk.LabelFrame(self, text="Files", padding=8)
+        file_frame = ttk.LabelFrame(parent, text="Files", padding=8)
         file_frame.pack(fill="x", **pad)
 
         ttk.Label(file_frame, text="Input video:").grid(row=0, column=0, sticky="w")
@@ -109,7 +135,7 @@ class App(tk.Tk):
         file_frame.columnconfigure(1, weight=1)
 
         # ── Model settings ────────────────────────────────────────────
-        model_frame = ttk.LabelFrame(self, text="Whisper settings", padding=8)
+        model_frame = ttk.LabelFrame(parent, text="Whisper settings", padding=8)
         model_frame.pack(fill="x", **pad)
 
         ttk.Label(model_frame, text="Model size:").grid(row=0, column=0, sticky="w")
@@ -131,7 +157,7 @@ class App(tk.Tk):
         src_combo.grid(row=0, column=3, sticky="w", padx=4)
 
         # ── Hardware status (auto-detected, read-only) ────────────────
-        hw_frame = ttk.LabelFrame(self, text="Hardware (auto-detected)", padding=8)
+        hw_frame = ttk.LabelFrame(parent, text="Hardware (auto-detected)", padding=8)
         hw_frame.pack(fill="x", **pad)
 
         # Backend & device indicator
@@ -154,7 +180,7 @@ class App(tk.Tk):
         detail_label.pack(anchor="w", pady=(2, 0))
 
         # ── Target languages ──────────────────────────────────────────
-        lang_frame = ttk.LabelFrame(self, text="Target languages (select one or more)", padding=8)
+        lang_frame = ttk.LabelFrame(parent, text="Target languages (select one or more)", padding=8)
         lang_frame.pack(fill="x", **pad)
 
         self.lang_vars: dict[str, tk.BooleanVar] = {}
@@ -173,7 +199,7 @@ class App(tk.Tk):
         ttk.Button(btn_row, text="Clear all", command=self._clear_all_langs).pack(side="left", padx=2)
 
         # ── Options ───────────────────────────────────────────────────
-        opt_frame = ttk.Frame(self)
+        opt_frame = ttk.Frame(parent)
         opt_frame.pack(fill="x", **pad)
 
         self.var_burn = tk.BooleanVar(value=False)
@@ -181,7 +207,7 @@ class App(tk.Tk):
                          variable=self.var_burn).pack(side="left")
 
         # ── Action buttons ────────────────────────────────────────────
-        btn_frame = ttk.Frame(self)
+        btn_frame = ttk.Frame(parent)
         btn_frame.pack(fill="x", **pad)
 
         self.btn_start = ttk.Button(btn_frame, text="▶  Start Processing", command=self._start)
@@ -193,8 +219,11 @@ class App(tk.Tk):
         self.btn_open_folder = ttk.Button(btn_frame, text="📂 Open output folder", command=self._open_output)
         self.btn_open_folder.pack(side="left", padx=4)
 
+        self.btn_play_result = ttk.Button(btn_frame, text="▶ Play in Player", command=self._play_result, state="disabled")
+        self.btn_play_result.pack(side="left", padx=4)
+
         # ── Progress ──────────────────────────────────────────────────
-        prog_frame = ttk.LabelFrame(self, text="Progress", padding=8)
+        prog_frame = ttk.LabelFrame(parent, text="Progress", padding=8)
         prog_frame.pack(fill="x", **pad)
 
         # Current step indicator (large, bold)
@@ -227,7 +256,7 @@ class App(tk.Tk):
         self._timer_id: str | None = None
 
         # ── Log ───────────────────────────────────────────────────────
-        log_frame = ttk.LabelFrame(self, text="Log", padding=4)
+        log_frame = ttk.LabelFrame(parent, text="Log", padding=4)
         log_frame.pack(fill="both", expand=True, **pad)
 
         self.log_text = tk.Text(log_frame, wrap="word", height=14, state="disabled",
@@ -275,6 +304,24 @@ class App(tk.Tk):
         folder = self.var_output.get()
         if os.path.isdir(folder):
             os.startfile(folder)
+
+    def _play_result(self):
+        """Open the processed video in the embedded player with subtitles."""
+        video = self.var_input.get().strip()
+        if not video or not os.path.isfile(video):
+            return
+
+        # Switch to Player tab
+        self._notebook.select(self._tab_player)
+
+        # Load video (VLC subtitle rendering disabled)
+        self._vlc_player.load_video(video)
+
+        # Load all generated SRT files into custom subtitle system
+        if hasattr(self, "_last_generated") and self._last_generated:
+            srt_files = [f for f in self._last_generated if f.endswith(".srt")]
+            if srt_files:
+                self._vlc_player.load_all_subtitles(srt_files)
 
     def _log(self, message: str):
         """Thread-safe log append."""
@@ -395,14 +442,16 @@ class App(tk.Tk):
                 on_log=self._log,
             )
             if generated:
+                self._last_generated = generated
                 self._log(f"\nGenerated files:")
                 for f in generated:
                     self._log(f"  • {f}")
+                self.after(0, lambda: self.btn_play_result.configure(state="normal"))
                 self.after(0, lambda: messagebox.showinfo(
                     "Done",
                     f"Generated {len(generated)} subtitle file(s).\n\n"
                     f"Output: {output_dir}\n\n"
-                    "Tip: In VLC, go to Subtitle → Add Subtitle File to load the .srt files."
+                    "Click '▶ Play in Player' to watch the video with subtitles."
                 ))
         except InterruptedError:
             self._log("\n⚠ Processing cancelled.")
@@ -426,6 +475,8 @@ class App(tk.Tk):
                 return
             if self.engine:
                 self.engine.cancel()
+        if hasattr(self, "_vlc_player"):
+            self._vlc_player.release()
         self.destroy()
 
 
