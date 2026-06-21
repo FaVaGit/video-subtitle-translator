@@ -184,21 +184,47 @@ class VLCPlayer(ttk.Frame):
         self._sub_panel_text.pack(fill="both", expand=True)
 
         # ── Controls ──────────────────────────────────────────────────
-        controls = ttk.Frame(self)
-        controls.pack(fill="x", padx=4, pady=4)
+        # Controls can be embedded or detached into a separate window
+        self._controls_detached = False
+        self._controls_window = None
 
-        # Row 1: file buttons
-        file_row = ttk.Frame(controls)
+        self._controls_frame = ttk.Frame(self)
+        self._controls_frame.pack(fill="x", padx=4, pady=4)
+        self._build_controls(self._controls_frame)
+
+    def _build_controls(self, parent):
+        """Build all control widgets inside the given parent frame."""
+        # Only create StringVars once (survive detach/attach)
+        if not hasattr(self, "var_video_name") or self.var_video_name is None:
+            self.var_video_name = tk.StringVar(value="No video loaded")
+        if not hasattr(self, "_detach_btn_text") or self._detach_btn_text is None:
+            self._detach_btn_text = tk.StringVar(
+                value="⇙ Attach" if self._controls_detached else "⇗ Detach"
+            )
+        if not hasattr(self, "var_time") or self.var_time is None:
+            self.var_time = tk.StringVar(value="00:00:00 / 00:00:00")
+        if not hasattr(self, "_seek_var") or self._seek_var is None:
+            self._seek_var = tk.DoubleVar(value=0)
+        if not hasattr(self, "_vol_var") or self._vol_var is None:
+            self._vol_var = tk.IntVar(value=80)
+        if not hasattr(self, "var_sub_lang") or self.var_sub_lang is None:
+            self.var_sub_lang = tk.StringVar(value="— none —")
+        if not hasattr(self, "_var_mode_combo") or self._var_mode_combo is None:
+            self._var_mode_combo = tk.StringVar(value="Overlay")
+
+        # Row 1: file buttons + detach toggle
+        file_row = ttk.Frame(parent)
         file_row.pack(fill="x", pady=(0, 3))
 
         ttk.Button(file_row, text="📂 Open Video", command=self._open_video).pack(side="left", padx=2)
         ttk.Button(file_row, text="📝 Add Subtitle", command=self._add_subtitle).pack(side="left", padx=2)
-
-        self.var_video_name = tk.StringVar(value="No video loaded")
         ttk.Label(file_row, textvariable=self.var_video_name, foreground="gray").pack(side="left", padx=8)
 
+        ttk.Button(file_row, textvariable=self._detach_btn_text,
+                   command=self._toggle_detach).pack(side="right", padx=2)
+
         # Row 2: playback
-        play_row = ttk.Frame(controls)
+        play_row = ttk.Frame(parent)
         play_row.pack(fill="x", pady=(0, 3))
 
         self.btn_play = ttk.Button(play_row, text="▶", width=4, command=self._toggle_play)
@@ -209,14 +235,12 @@ class VLCPlayer(ttk.Frame):
         ttk.Button(play_row, text="⏩ +10s", width=7,
                    command=lambda: self._seek_relative(10000)).pack(side="left", padx=2)
 
-        self.var_time = tk.StringVar(value="00:00:00 / 00:00:00")
         ttk.Label(play_row, textvariable=self.var_time, font=("Consolas", 9)).pack(side="right", padx=8)
 
         # Row 3: seek bar
-        seek_row = ttk.Frame(controls)
+        seek_row = ttk.Frame(parent)
         seek_row.pack(fill="x", pady=(0, 3))
 
-        self._seek_var = tk.DoubleVar(value=0)
         self._seek_scale = ttk.Scale(
             seek_row, from_=0, to=1000, variable=self._seek_var,
             orient="horizontal", command=self._on_seek,
@@ -224,34 +248,32 @@ class VLCPlayer(ttk.Frame):
         self._seek_scale.pack(fill="x", expand=True)
 
         # Row 4: volume
-        vol_row = ttk.Frame(controls)
+        vol_row = ttk.Frame(parent)
         vol_row.pack(fill="x", pady=(0, 3))
 
         ttk.Label(vol_row, text="🔊").pack(side="left")
-        self._vol_var = tk.IntVar(value=80)
         ttk.Scale(
             vol_row, from_=0, to=100, variable=self._vol_var,
             orient="horizontal", length=120, command=self._on_volume,
         ).pack(side="left", padx=4)
 
         # ── Row 5: Subtitle controls (clearly labelled section) ──────
-        sub_frame = ttk.LabelFrame(controls, text="Subtitles", padding=6)
+        sub_frame = ttk.LabelFrame(parent, text="Subtitles", padding=6)
         sub_frame.pack(fill="x", pady=(4, 0))
 
         sub_top = ttk.Frame(sub_frame)
         sub_top.pack(fill="x")
 
         ttk.Label(sub_top, text="Language:").pack(side="left", padx=(0, 4))
-        self.var_sub_lang = tk.StringVar(value="— none —")
         self._lang_combo = ttk.Combobox(
             sub_top, textvariable=self.var_sub_lang,
-            values=["— none —"], state="readonly", width=28,
+            values=["— none —"] + list(self._srt_files.keys()),
+            state="readonly", width=28,
         )
         self._lang_combo.pack(side="left", padx=2)
         self._lang_combo.bind("<<ComboboxSelected>>", self._on_lang_changed)
 
         ttk.Label(sub_top, text="  Display:").pack(side="left", padx=(12, 4))
-        self._var_mode_combo = tk.StringVar(value="Overlay")
         mode_combo = ttk.Combobox(
             sub_top, textvariable=self._var_mode_combo,
             values=["Overlay", "Panel"], state="readonly", width=10,
@@ -284,6 +306,61 @@ class VLCPlayer(ttk.Frame):
                 self._paned.forget(self._sub_panel)
             except Exception:
                 pass
+
+    # ──────────────────────────────────────────────────────────────────
+    # Detach / Attach controls
+    # ──────────────────────────────────────────────────────────────────
+
+    def _toggle_detach(self):
+        if self._controls_detached:
+            self._attach_controls()
+        else:
+            self._detach_controls()
+
+    def _detach_controls(self):
+        """Move controls into a separate floating window."""
+        if self._controls_detached:
+            return
+
+        # Destroy current embedded controls
+        self._controls_frame.pack_forget()
+        for widget in self._controls_frame.winfo_children():
+            widget.destroy()
+
+        # Create floating window
+        self._controls_window = tk.Toplevel(self)
+        self._controls_window.title("Player Controls")
+        self._controls_window.transient(self.winfo_toplevel())
+        self._controls_window.protocol("WM_DELETE_WINDOW", self._attach_controls)
+        self._controls_window.geometry("580x220")
+        self._controls_window.minsize(400, 180)
+
+        # Rebuild controls inside floating window
+        inner = ttk.Frame(self._controls_window, padding=6)
+        inner.pack(fill="both", expand=True)
+        self._build_controls(inner)
+
+        self._controls_detached = True
+        self._detach_btn_text.set("⇙ Attach")
+
+    def _attach_controls(self):
+        """Bring controls back into the main widget."""
+        if not self._controls_detached:
+            return
+
+        # Destroy floating window
+        if self._controls_window:
+            for widget in self._controls_window.winfo_children():
+                widget.destroy()
+            self._controls_window.destroy()
+            self._controls_window = None
+
+        # Rebuild controls inside embedded frame
+        self._controls_frame.pack(fill="x", padx=4, pady=4)
+        self._build_controls(self._controls_frame)
+
+        self._controls_detached = False
+        self._detach_btn_text.set("⇗ Detach")
 
     # ──────────────────────────────────────────────────────────────────
     # Style settings dialog
