@@ -1,4 +1,3 @@
-import { tokens } from '@fluentui/react-components';
 import { SubtitleStyle } from '../store/playerStore';
 
 export const subtitlePresets: Record<string, SubtitleStyle> = {

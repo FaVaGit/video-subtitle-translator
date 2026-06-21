@@ -30,27 +30,17 @@ const useStyles = makeStyles({
     border: `2px dashed ${tokens.colorNeutralStroke1}`,
     borderRadius: tokens.borderRadiusMedium,
     padding: '32px',
-    textAlign: 'center',
+    textAlign: 'center' as const,
     cursor: 'pointer',
-    '&:hover': {
-      borderColor: tokens.colorBrandStroke1,
+    ':hover': {
+      borderTopColor: tokens.colorBrandStroke1,
+      borderRightColor: tokens.colorBrandStroke1,
+      borderBottomColor: tokens.colorBrandStroke1,
+      borderLeftColor: tokens.colorBrandStroke1,
       backgroundColor: tokens.colorNeutralBackground1Hover,
     },
   },
 });
-
-const LANGUAGES = [
-  { value: 'en', label: 'English' },
-  { value: 'it', label: 'Italiano' },
-  { value: 'fr', label: 'Français' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'es', label: 'Español' },
-  { value: 'pt', label: 'Português' },
-  { value: 'ja', label: '日本語' },
-  { value: 'zh', label: '中文' },
-  { value: 'ko', label: '한국어' },
-  { value: 'ru', label: 'Русский' },
-];
 
 const MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'];
 

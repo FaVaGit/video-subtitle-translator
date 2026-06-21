@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import { makeStyles } from '@fluentui/react-components';
 import { SubtitleCue } from '../../api/videoApi';
 import { SubtitleStyle } from '../../store/playerStore';
