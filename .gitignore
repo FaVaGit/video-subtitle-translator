@@ -32,3 +32,29 @@ models/
 
 # Pyright
 pyrightconfig.json
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.DotSettings.user
+publish/
+
+# Node
+node_modules/
+.vite/
+*.tsbuildinfo
+
+# Tauri
+src/Desktop/src-tauri/target/
+
+# App data
+data/
+*.log
+
+# Docker volumes
+docker/nats-data/

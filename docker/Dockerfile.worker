@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY VideoSubtitleTranslator.Core/*.csproj VideoSubtitleTranslator.Core/
+COPY VideoSubtitleTranslator.Infrastructure/*.csproj VideoSubtitleTranslator.Infrastructure/
+COPY VideoSubtitleTranslator.Worker/*.csproj VideoSubtitleTranslator.Worker/
+RUN dotnet restore VideoSubtitleTranslator.Worker/VideoSubtitleTranslator.Worker.csproj
+
+COPY . .
+RUN dotnet publish VideoSubtitleTranslator.Worker/VideoSubtitleTranslator.Worker.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app/publish .
+
+ENTRYPOINT ["dotnet", "VideoSubtitleTranslator.Worker.dll"]

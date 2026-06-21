@@ -1,0 +1,6 @@
+@VideoSubtitleTranslator.Api_HostAddress = http://localhost:5051
+
+GET {{VideoSubtitleTranslator.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

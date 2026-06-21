@@ -1,0 +1,188 @@
+# Video Subtitle Translator
+
+A modern, cross-platform video subtitle translation application built with **ASP.NET Core 9**, **React 19**, **Fabric.js**, and **Tauri 2.0**.
+
+Automatically extracts audio from video files, transcribes speech using Whisper (ONNX Runtime), translates into 24+ languages, and generates synchronized subtitle files — all with a modern UI and real-time progress tracking.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Client: Browser / Tauri Desktop (WebView)                          │
+│  React 19 + Fluent UI + Fabric.js                                   │
+│  SSE (EventSource) for real-time progress                           │
+└───────────┬─────────────────────────────────────────────────────────┘
+            │ REST + SSE
+┌───────────▼─────────────────────────────────────────────────────────┐
+│  ASP.NET Core 9 API                                                  │
+│  Upload → NATS JetStream → Worker                                    │
+│  SSE progress endpoint (IAsyncEnumerable)                            │
+└───────────┬─────────────────────────────────────────────────────────┘
+            │ NATS JetStream
+┌───────────▼─────────────────────────────────────────────────────────┐
+│  .NET Worker Service                                                 │
+│  FFmpeg → Whisper (ONNX) → Google Translate → SRT/VTT Generator     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19 + TypeScript + Vite |
+| UI Kit | Fluent UI React v9 |
+| Canvas | Fabric.js 6.x (subtitle overlay & timeline editor) |
+| Realtime | SSE (Server-Sent Events) via `IAsyncEnumerable` |
+| Backend | ASP.NET Core 9 |
+| Message Queue | NATS JetStream |
+| Worker | .NET Worker Service |
+| Transcription | ONNX Runtime (Whisper models) |
+| Translation | Google Translate API |
+| Video Processing | FFmpeg |
+| Desktop | Tauri 2.0 (WebView2/WebKit) |
+| Container | Docker Compose |
+
+## Project Structure
+
+```
+video-subtitle-translator/
+├── src/
+│   ├── Backend/
+│   │   ├── VideoSubtitleTranslator.Api/         # ASP.NET Core Web API
+│   │   ├── VideoSubtitleTranslator.Core/        # Domain models & interfaces
+│   │   ├── VideoSubtitleTranslator.Infrastructure/ # Implementations
+│   │   ├── VideoSubtitleTranslator.Worker/      # Background job processor
+│   │   └── VideoSubtitleTranslator.sln
+│   ├── Frontend/                                # React SPA
+│   │   ├── src/
+│   │   │   ├── api/          # HTTP & SSE clients
+│   │   │   ├── components/   # UI components
+│   │   │   ├── hooks/        # Custom React hooks
+│   │   │   ├── store/        # Zustand state management
+│   │   │   └── lib/          # Utilities (SRT parser, presets)
+│   │   └── package.json
+│   └── Desktop/                                 # Tauri 2.0 wrapper
+│       └── src-tauri/
+├── docker/
+│   ├── docker-compose.yml
+│   ├── Dockerfile.api
+│   ├── Dockerfile.worker
+│   └── Dockerfile.frontend
+└── README.md
+```
+
+## Getting Started
+
+### Prerequisites
+
+- [.NET 9 SDK](https://dotnet.microsoft.com/download)
+- [Node.js 22+](https://nodejs.org/)
+- [FFmpeg](https://ffmpeg.org/) on PATH
+- [NATS Server](https://nats.io/) (or Docker)
+- [Rust](https://www.rust-lang.org/) (for Tauri desktop build only)
+
+### Quick Start (Docker)
+
+```bash
+cd docker
+docker compose up -d
+```
+
+This starts:
+- **NATS** on port 4222
+- **API** on port 5000
+- **Worker** (background processing)
+- **Frontend** on port 3000
+
+Open http://localhost:3000
+
+### Development Setup
+
+#### Backend
+
+```bash
+cd src/Backend
+
+# Start NATS
+docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.11-alpine --jetstream
+
+# Run API
+dotnet run --project VideoSubtitleTranslator.Api
+
+# Run Worker (separate terminal)
+dotnet run --project VideoSubtitleTranslator.Worker
+```
+
+#### Frontend
+
+```bash
+cd src/Frontend
+npm install
+npm run dev
+```
+
+Opens at http://localhost:5173 with API proxy to localhost:5000.
+
+#### Desktop (Tauri)
+
+```bash
+cd src/Desktop
+cargo install tauri-cli
+cargo tauri dev
+```
+
+## Features
+
+- **Video Upload**: Supports MP4, MKV, AVI, MOV, WebM (up to 2GB)
+- **Speech Recognition**: Whisper models (tiny → large-v3) via ONNX Runtime
+- **Translation**: 24+ languages via Google Translate with rate limiting
+- **Subtitle Formats**: SRT and WebVTT output
+- **Player**:
+  - HTML5 video with range-based seeking
+  - Fabric.js canvas overlay for custom subtitle rendering
+  - Panel mode for subtitle display below video
+  - Multi-language track switching
+  - Customizable styles (font, size, color, position)
+  - Keyboard shortcuts
+  - Fullscreen support
+- **Real-time Progress**: SSE streaming from worker to UI
+- **Cross-platform**: Web, Windows, macOS, Linux
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/video/upload` | Upload video and start processing |
+| GET | `/api/jobs/{id}/progress` | SSE stream of job progress |
+| GET | `/api/player/stream/{id}` | Stream video (range support) |
+| GET | `/api/player/{id}/tracks` | List subtitle tracks |
+| GET | `/api/player/{id}/subtitles/{lang}` | Get subtitle cues (JSON/SRT/VTT) |
+| GET | `/api/subtitle/{id}` | List all generated subtitle files |
+| GET | `/api/subtitle/{id}/download/{file}` | Download subtitle file |
+
+## Configuration
+
+### API (`appsettings.json`)
+
+```json
+{
+  "Nats": { "Url": "nats://localhost:4222" },
+  "Storage": { "BasePath": "./data" }
+}
+```
+
+### Worker
+
+```json
+{
+  "Nats": { "Url": "nats://localhost:4222" },
+  "Storage": { "BasePath": "./data" },
+  "Whisper": { "ModelPath": "./models/whisper-medium" }
+}
+```
+
+## License
+
+MIT

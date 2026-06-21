@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicehash/tauri/dev/crates/tauri-cli/schema.json",
+  "productName": "Video Subtitle Translator",
+  "version": "1.0.0",
+  "identifier": "com.videosubtitletranslator.app",
+  "build": {
+    "frontendDist": "../../Frontend/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "cd ../../Frontend && npm run dev",
+    "beforeBuildCommand": "cd ../../Frontend && npm run build"
+  },
+  "app": {
+    "title": "Video Subtitle Translator",
+    "windows": [
+      {
+        "title": "Video Subtitle Translator",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

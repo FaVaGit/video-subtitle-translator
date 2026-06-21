@@ -1,0 +1,56 @@
+services:
+  nats:
+    image: nats:2.11-alpine
+    command: ["--jetstream", "--store_dir=/data", "-p", "4222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../src/Backend
+      dockerfile: ../../docker/Dockerfile.api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Nats__Url=nats://nats:4222
+      - Storage__BasePath=/app/data
+    volumes:
+      - app-data:/app/data
+    depends_on:
+      - nats
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../src/Backend
+      dockerfile: ../../docker/Dockerfile.worker
+    environment:
+      - Nats__Url=nats://nats:4222
+      - Storage__BasePath=/app/data
+      - Whisper__ModelPath=/app/models/whisper-medium
+    volumes:
+      - app-data:/app/data
+      - whisper-models:/app/models
+    depends_on:
+      - nats
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../src/Frontend
+      dockerfile: ../../docker/Dockerfile.frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  nats-data:
+  app-data:
+  whisper-models:
