@@ -6,11 +6,9 @@ title Video Subtitle Translator - Frontend Only
 set "ROOT=%~dp0.."
 cd /d "%ROOT%\src\Frontend"
 
-set "GREEN=[92m"
-set "CYAN=[96m"
-set "RESET=[0m"
-
-echo %CYAN%[FRONTEND] Starting React dev server only...%RESET%
+echo.
+echo   [FRONTEND] Starting React dev server only...
+echo   ═════════════════════════════════════════
 echo.
 
 if not exist "node_modules" (
@@ -18,8 +16,8 @@ if not exist "node_modules" (
     npm install --silent >nul 2>&1
 )
 
-echo   %GREEN%Frontend%RESET%  → http://localhost:5173
-echo   %GREEN%API proxy%RESET% → http://localhost:5000 (configure in vite.config.ts)
+echo         Frontend  http://localhost:5173
+echo         API proxy http://localhost:5000
 echo.
 
 npm run dev

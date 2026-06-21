@@ -1,29 +1,23 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 chcp 65001 >nul 2>&1
 title Video Subtitle Translator - Docker Mode
 
 set "ROOT=%~dp0.."
 cd /d "%ROOT%"
 
-set "GREEN=[92m"
-set "YELLOW=[93m"
-set "RED=[91m"
-set "CYAN=[96m"
-set "RESET=[0m"
-
-echo %CYAN%[DOCKER] Starting via Docker Compose...%RESET%
+echo.
+echo   [DOCKER] Starting via Docker Compose...
+echo   ═════════════════════════════════════════
 echo.
 
-:: Verify Docker
 docker info >nul 2>&1
 if %errorlevel% neq 0 (
-    echo %RED%Docker is not running. Please start Docker Desktop.%RESET%
+    echo   [ERROR] Docker is not running. Start Docker Desktop.
     pause
     exit /b 1
 )
 
-:: Detect compose command (v2 vs v1)
 set "COMPOSE=docker compose"
 docker compose version >nul 2>&1
 if %errorlevel% neq 0 (
@@ -31,29 +25,24 @@ if %errorlevel% neq 0 (
     if %errorlevel%==0 (
         set "COMPOSE=docker-compose"
     ) else (
-        echo %RED%Docker Compose not found.%RESET%
+        echo   [ERROR] Docker Compose not found.
         pause
         exit /b 1
     )
 )
 
-echo   Using: %COMPOSE%
-echo.
-
-:: Build and start
-echo %CYAN%Building images...%RESET%
+echo   Building images...
 cd /d "%ROOT%\docker"
 %COMPOSE% build
 
 echo.
-echo %CYAN%Starting services...%RESET%
+echo   Starting services...
 echo.
-echo   %GREEN%Frontend%RESET%  → http://localhost:3000
-echo   %GREEN%API%RESET%       → http://localhost:5000
-echo   %GREEN%NATS%RESET%      → nats://localhost:4222
-echo   %GREEN%NATS Mon%RESET%  → http://localhost:8222
+echo         Frontend  http://localhost:3000
+echo         API       http://localhost:5000
+echo         NATS      nats://localhost:4222
 echo.
-echo   %YELLOW%Press Ctrl+C to stop%RESET%
+echo   Ctrl+C to stop.
 echo.
 
 %COMPOSE% up

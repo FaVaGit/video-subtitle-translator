@@ -6,122 +6,121 @@ title Video Subtitle Translator - Development Mode
 set "ROOT=%~dp0.."
 cd /d "%ROOT%"
 
-set "GREEN=[92m"
-set "YELLOW=[93m"
-set "RED=[91m"
-set "CYAN=[96m"
-set "RESET=[0m"
-
-echo %CYAN%[DEV] Starting development environment...%RESET%
+echo.
+echo   [DEV] Starting development environment...
+echo   ═════════════════════════════════════════
 echo.
 
 :: ── Step 1: Ensure NATS is running ──
-echo %CYAN%[1/4] Checking NATS server...%RESET%
+echo   [1/4] NATS server...
 
-:: Try local nats-server first
 set "NATS_STARTED=0"
+
+:: Check if already running on port 4222
+netstat -an 2>nul | findstr ":4222 " | findstr "LISTENING" >nul 2>&1
+if %errorlevel%==0 (
+    echo         Already running on :4222
+    goto :nats_ok
+)
+
+:: Try local nats-server binary
 where nats-server >nul 2>&1
 if %errorlevel%==0 (
-    :: Check if already running
-    netstat -an | findstr ":4222" >nul 2>&1
-    if !errorlevel! neq 0 (
-        echo   Starting local NATS with JetStream...
-        start "NATS Server" /min nats-server --jetstream --store_dir "%ROOT%\data\nats"
-        set "NATS_STARTED=1"
-        timeout /t 2 /nobreak >nul
-    ) else (
-        echo   %GREEN%NATS already running on :4222%RESET%
-    )
-) else (
-    :: Fall back to Docker
-    where docker >nul 2>&1
-    if %errorlevel%==0 (
-        docker info >nul 2>&1
+    echo         Starting local nats-server...
+    if not exist "%ROOT%\data\nats" mkdir "%ROOT%\data\nats"
+    start "NATS Server" /min nats-server --jetstream --store_dir "%ROOT%\data\nats"
+    set "NATS_STARTED=local"
+    timeout /t 2 /nobreak >nul
+    goto :nats_ok
+)
+
+:: Try Docker
+where docker >nul 2>&1
+if %errorlevel%==0 (
+    docker info >nul 2>&1
+    if !errorlevel!==0 (
+        :: Check if container exists but stopped
+        docker ps -a --filter "name=vst-nats" --format "{{.Names}}" 2>nul | findstr "vst-nats" >nul
         if !errorlevel!==0 (
-            docker ps --filter "name=vst-nats" --format "{{.Names}}" 2>nul | findstr "vst-nats" >nul
-            if !errorlevel! neq 0 (
-                echo   Starting NATS via Docker...
-                docker run -d --name vst-nats -p 4222:4222 -p 8222:8222 nats:2.11-alpine --jetstream >nul 2>&1
-                if !errorlevel! neq 0 (
-                    :: Container might exist but be stopped
-                    docker start vst-nats >nul 2>&1
-                )
-                set "NATS_STARTED=1"
-                timeout /t 2 /nobreak >nul
-            ) else (
-                echo   %GREEN%NATS container already running%RESET%
-            )
+            echo         Starting existing Docker container...
+            docker start vst-nats >nul 2>&1
         ) else (
-            echo %RED%  Docker not running. Start Docker or install nats-server.%RESET%
-            pause
-            exit /b 1
+            echo         Creating NATS Docker container...
+            docker run -d --name vst-nats -p 4222:4222 -p 8222:8222 nats:2.11-alpine --jetstream >nul 2>&1
         )
-    ) else (
-        echo %RED%  No NATS server or Docker found. Install one of them.%RESET%
-        pause
-        exit /b 1
+        set "NATS_STARTED=docker"
+        timeout /t 2 /nobreak >nul
+        goto :nats_ok
     )
 )
-echo   %GREEN%✓ NATS ready%RESET%
+
+echo         [ERROR] No NATS available. Install nats-server or Docker.
+pause
+exit /b 1
+
+:nats_ok
+echo         [OK]
 echo.
 
-:: ── Step 2: Restore & build backend ──
-echo %CYAN%[2/4] Building backend...%RESET%
+:: ── Step 2: Build backend ──
+echo   [2/4] Building backend...
 cd /d "%ROOT%\src\Backend"
 dotnet restore --nologo -q >nul 2>&1
 dotnet build --nologo -q >nul 2>&1
 if %errorlevel% neq 0 (
-    echo %RED%  Backend build failed!%RESET%
+    echo         [ERROR] Build failed:
     dotnet build --nologo
     pause
     exit /b 1
 )
-echo   %GREEN%✓ Backend built%RESET%
+echo         [OK]
 echo.
 
-:: ── Step 3: Install frontend deps if needed ──
-echo %CYAN%[3/4] Preparing frontend...%RESET%
+:: ── Step 3: Frontend deps ──
+echo   [3/4] Preparing frontend...
 cd /d "%ROOT%\src\Frontend"
 if not exist "node_modules" (
-    echo   Installing npm packages...
+    echo         Installing npm packages...
     npm install --silent >nul 2>&1
 )
-echo   %GREEN%✓ Frontend ready%RESET%
+echo         [OK]
 echo.
 
-:: ── Step 4: Start all services ──
-echo %CYAN%[4/4] Starting services...%RESET%
+:: ── Step 4: Launch all services ──
+echo   [4/4] Launching services...
 echo.
-echo   %GREEN%API%RESET%       → http://localhost:5000
-echo   %GREEN%Swagger%RESET%   → http://localhost:5000/swagger
-echo   %GREEN%Frontend%RESET%  → http://localhost:5173
-echo   %GREEN%NATS%RESET%      → nats://localhost:4222
-echo   %GREEN%NATS Mon%RESET%  → http://localhost:8222
+echo         API       http://localhost:5000
+echo         Swagger   http://localhost:5000/swagger
+echo         Frontend  http://localhost:5173
+echo         NATS      nats://localhost:4222
 echo.
-echo   %YELLOW%Press Ctrl+C in any window to stop%RESET%
+echo   ─────────────────────────────────────────
+echo   Ctrl+C in this window stops everything.
+echo   ─────────────────────────────────────────
 echo.
 
-:: Start Worker in background
+:: Start Worker (background window)
 cd /d "%ROOT%\src\Backend"
 start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
 
-:: Start API in background
+:: Start API (background window)
 start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000"
 
-:: Start Frontend (foreground - Ctrl+C stops it)
+:: Start Frontend (foreground)
 cd /d "%ROOT%\src\Frontend"
-echo %CYAN%Starting frontend dev server (Ctrl+C to stop all)...%RESET%
 npm run dev
 
-:: Cleanup when frontend stops
+:: ── Cleanup ──
 echo.
-echo %YELLOW%Shutting down...%RESET%
+echo   Shutting down...
 taskkill /fi "WINDOWTITLE eq VST Worker" /f >nul 2>&1
 taskkill /fi "WINDOWTITLE eq VST API" /f >nul 2>&1
-if "%NATS_STARTED%"=="1" (
-    where nats-server >nul 2>&1 && taskkill /im nats-server.exe /f >nul 2>&1
+if "%NATS_STARTED%"=="local" (
+    taskkill /fi "WINDOWTITLE eq NATS Server" /f >nul 2>&1
+)
+if "%NATS_STARTED%"=="docker" (
     docker stop vst-nats >nul 2>&1
 )
-echo %GREEN%All services stopped.%RESET%
+echo   All services stopped.
 
 endlocal
