@@ -32,6 +32,7 @@ if defined PID5173 (
     ) else (
         echo   [WARN] Port 5173 is in use by another process ^(PID !PID5173!^).
         echo   Close that process or free the port, then retry.
+        echo   Tip: run scripts\cleanup-ports.bat as Administrator.
         pause
         exit /b 1
     )

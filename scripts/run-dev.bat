@@ -114,6 +114,7 @@ if defined PID5173 (
     ) else (
         echo   [WARN] Port 5173 is in use by another process ^(PID !PID5173!^).
         echo   Frontend cannot start in strict mode until the port is free.
+        echo   Tip: run scripts\cleanup-ports.bat as Administrator.
     )
 )
 
