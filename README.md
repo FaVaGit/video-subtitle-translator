@@ -97,6 +97,10 @@ Authentication note:
 - Direct reuse of VS Code Copilot internal auth token is not supported.
 - The provided flow uses GitHub authentication via `GITHUB_TOKEN` (automatically imported from `gh auth token` when available).
 
+Frontend entrypoint:
+- The Transcribe tab now includes an "MCP & GitHub Authentication" panel.
+- Users can open GitHub token page, validate a token, and save it locally from UI before starting MCP mode.
+
 ## Repository Layout
 
 ```

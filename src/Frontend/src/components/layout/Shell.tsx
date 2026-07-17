@@ -11,6 +11,7 @@ import { VideoUploader } from '../upload/VideoUploader';
 import { JobProgress } from '../processing/JobProgress';
 import { VideoPlayer } from '../player/VideoPlayer';
 import { CommandBar } from './CommandBar';
+import { McpAuthPanel } from '../mcp/McpAuthPanel';
 
 const useStyles = makeStyles({
   root: {
@@ -64,6 +65,7 @@ export function Shell() {
             <>
               <VideoUploader />
               <JobProgress />
+              <McpAuthPanel />
             </>
           )}
           {activeTab === 'player' && <VideoPlayer />}

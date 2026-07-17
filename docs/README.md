@@ -209,6 +209,10 @@ Authentication note:
 - Internal Copilot session tokens are not exposed for external MCP usage.
 - Use GitHub authentication (`gh auth login`) and `GITHUB_TOKEN` for model access.
 
+Frontend-first authentication:
+- The Transcribe view includes an "MCP & GitHub Authentication" panel.
+- From there users can open GitHub token settings, validate token, and save local auth state before starting MCP.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
