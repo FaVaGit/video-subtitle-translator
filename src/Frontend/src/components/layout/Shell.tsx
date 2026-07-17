@@ -11,7 +11,6 @@ import { VideoUploader } from '../upload/VideoUploader';
 import { JobProgress } from '../processing/JobProgress';
 import { VideoPlayer } from '../player/VideoPlayer';
 import { CommandBar } from './CommandBar';
-import { useJobStore } from '../../store/jobStore';
 
 const useStyles = makeStyles({
   root: {
@@ -45,7 +44,6 @@ const useStyles = makeStyles({
 export function Shell() {
   const styles = useStyles();
   const [activeTab, setActiveTab] = useState('upload');
-  const jobStatus = useJobStore((s) => s.status);
 
   const handleTabSelect = (_: SelectTabEvent, data: SelectTabData) => {
     setActiveTab(data.value as string);
@@ -57,7 +55,7 @@ export function Shell() {
         <CommandBar />
         <TabList className={styles.tabs} selectedValue={activeTab} onTabSelect={handleTabSelect}>
           <Tab value="upload">🎬 Transcribe</Tab>
-          <Tab value="player" disabled={jobStatus !== 'completed'}>
+          <Tab value="player">
             ▶ Player
           </Tab>
         </TabList>

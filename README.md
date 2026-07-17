@@ -15,6 +15,7 @@ Legacy Python files (`main.py`, `cli.py`, `engine.py`) are still in the reposito
 - End-to-end API/frontend/desktop orchestration scripts are available under `scripts/`.
 - Desktop can run without Python using Tauri (`run-desktop.bat` / `run-desktop-release.bat`).
 - Transcription engine implementation in `OnnxWhisperEngine` is scaffolded, but ONNX inference is still a placeholder.
+- Player tab is always accessible (Python-like UX); actual video/subtitle playback is available after a processed job is present.
 
 ## Prerequisites
 

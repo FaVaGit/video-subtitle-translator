@@ -174,6 +174,8 @@ Linux/macOS:
 - **Translation**: 24+ languages via Google Translate with rate limiting
 - **Subtitle Formats**: SRT and WebVTT output
 - **Player**:
+  - Player tab is always enabled (aligned with desktop Python UX)
+  - Shows placeholder state until a processed job is available
   - HTML5 video with range-based seeking
   - Fabric.js canvas overlay for custom subtitle rendering
   - Panel mode for subtitle display below video
