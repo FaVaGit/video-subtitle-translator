@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# Desktop mode: Tauri + Backend
+# Desktop release mode: build and run packaged desktop app
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,21 +20,19 @@ cleanup() {
     [ "$NATS_DOCKER" -eq 1 ] && docker stop vst-nats &>/dev/null || true
     [ "$NATS_LOCAL" -eq 1 ] && killall nats-server 2>/dev/null || true
     echo -e "${GREEN}All services stopped.${NC}"
-    exit 0
 }
 trap cleanup EXIT INT TERM
 
-echo -e "${CYAN}[DESKTOP] Starting Tauri desktop app...${NC}"
+echo -e "${CYAN}[DESKTOP-RELEASE] Building and launching packaged app...${NC}"
 echo
 
-# Verify
 command -v cargo &>/dev/null || { echo -e "${RED}Rust not found. Install from https://rustup.rs${NC}"; exit 1; }
 command -v node &>/dev/null || { echo -e "${RED}Node.js not found. Install Node.js 22+${NC}"; exit 1; }
 command -v dotnet &>/dev/null || { echo -e "${RED}.NET SDK not found.${NC}"; exit 1; }
 cargo tauri --version &>/dev/null || { echo -e "${RED}cargo-tauri not found. Install with: cargo install tauri-cli${NC}"; exit 1; }
 
 # ── NATS ──
-echo -e "${CYAN}[1/3] Checking NATS...${NC}"
+echo -e "${CYAN}[1/4] Checking NATS...${NC}"
 if ss -tlnp 2>/dev/null | grep -q ':4222' || netstat -tlnp 2>/dev/null | grep -q ':4222'; then
     echo -e "  ${GREEN}✓ NATS already running${NC}"
 elif command -v nats-server &>/dev/null; then
@@ -53,26 +51,35 @@ fi
 echo
 
 # ── Backend ──
-echo -e "${CYAN}[2/3] Starting backend...${NC}"
+echo -e "${CYAN}[2/4] Starting backend...${NC}"
 cd "$ROOT/src/Backend"
 dotnet build --nologo -q &>/dev/null
 
 dotnet run --project VideoSubtitleTranslator.Worker --no-build &>/dev/null &
 PIDS+=($!)
-dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000" &
+dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000" &>/dev/null &
 PIDS+=($!)
 echo -e "  ${GREEN}✓ API + Worker started${NC}"
 echo
 
-# ── Tauri ──
-echo -e "${CYAN}[3/3] Starting Tauri dev mode...${NC}"
-echo
-echo -e "  ${GREEN}API${NC}       → http://localhost:5000"
-echo -e "  ${GREEN}Desktop${NC}   → Tauri window will open"
-echo
-
+# ── Build desktop ──
+echo -e "${CYAN}[3/4] Building desktop app...${NC}"
 cd "$ROOT/src/Frontend"
 [ ! -d "node_modules" ] && npm install --silent &>/dev/null
-
 cd "$ROOT/src/Desktop/src-tauri"
-cargo tauri dev
+cargo tauri build
+echo -e "  ${GREEN}✓ Desktop build completed${NC}"
+echo
+
+# ── Launch packaged binary ──
+echo -e "${CYAN}[4/4] Launching packaged desktop app...${NC}"
+APP_BIN="$ROOT/src/Desktop/src-tauri/target/release/video-subtitle-translator"
+if [ ! -f "$APP_BIN" ]; then
+    echo -e "${RED}Packaged binary not found: $APP_BIN${NC}"
+    exit 1
+fi
+
+echo -e "  ${GREEN}API${NC}       → http://localhost:5000"
+echo -e "  ${GREEN}Desktop${NC}   → $APP_BIN"
+echo
+"$APP_BIN"

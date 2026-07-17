@@ -173,7 +173,7 @@ class SubtitleEngine:
 
         if on_log:
             on_log("  Backend auto-selected: CTranslate2 (CPU)")
-        return "ctranslate2"  # fallback to faster-whisper (CPU/CUDA)
+        return "ctranslate2"  # fallback to faster-whisper on CPU
 
     def load_model(self, *, on_log=None):
         resolved = self._resolve_backend(on_log=on_log)
@@ -192,24 +192,11 @@ class SubtitleEngine:
 
         from faster_whisper import WhisperModel  # noqa: delay import
 
-        device = self.device
+        # CTranslate2 backend always runs on CPU (GPU acceleration is via DirectML)
+        device = "cpu"
         compute_type = "int8"
-
-        if device in ("auto", "cuda"):
-            try:
-                import ctranslate2
-                ctranslate2.get_cuda_device_count()
-                device = "cuda"
-                compute_type = "float16"
-                if on_log:
-                    on_log("  CUDA available — using GPU acceleration.")
-            except Exception:
-                device = "cpu"
-                compute_type = "int8"
-                if on_log:
-                    on_log("  CUDA not available — using CPU (slower but works fine).")
-        elif device == "cpu":
-            compute_type = "int8"
+        if on_log:
+            on_log("  Using CPU with int8 quantization.")
 
         if on_log:
             on_log(f"  Downloading/loading model ({device}, {compute_type})…")

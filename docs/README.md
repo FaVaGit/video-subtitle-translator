@@ -4,6 +4,8 @@ A modern, cross-platform video subtitle translation application built with **ASP
 
 Automatically extracts audio from video files, transcribes speech using Whisper (ONNX Runtime), translates into 24+ languages, and generates synchronized subtitle files — all with a modern UI and real-time progress tracking.
 
+> Status note: the ONNX Whisper integration is currently scaffolded in infrastructure, but inference logic is still a placeholder (`OnnxWhisperEngine.ProcessChunkAsync`).
+
 ---
 
 ## Architecture
@@ -98,6 +100,24 @@ This starts:
 
 Open http://localhost:3000
 
+### Quick Start (Scripted launcher)
+
+From repository root:
+
+Windows:
+
+```bat
+scripts\run.bat
+```
+
+Linux/macOS:
+
+```bash
+./scripts/run.sh
+```
+
+The launcher auto-detects tools and offers available modes (`dev`, `docker`, `desktop`, `desktop-release`, `api-only`, `frontend-only`).
+
 ### Development Setup
 
 #### Backend
@@ -133,6 +153,20 @@ cargo install tauri-cli
 cargo tauri dev
 ```
 
+For packaged desktop execution (no Python required), use:
+
+Windows:
+
+```bat
+scripts\run-desktop-release.bat
+```
+
+Linux/macOS:
+
+```bash
+./scripts/run-desktop-release.sh
+```
+
 ## Features
 
 - **Video Upload**: Supports MP4, MKV, AVI, MOV, WebM (up to 2GB)
@@ -150,6 +184,9 @@ cargo tauri dev
 - **Real-time Progress**: SSE streaming from worker to UI
 - **Cross-platform**: Web, Windows, macOS, Linux
 
+Implementation status caveat:
+- Speech recognition pipeline wiring exists, but ONNX inference implementation is pending.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -161,6 +198,9 @@ cargo tauri dev
 | GET | `/api/player/{id}/subtitles/{lang}` | Get subtitle cues (JSON/SRT/VTT) |
 | GET | `/api/subtitle/{id}` | List all generated subtitle files |
 | GET | `/api/subtitle/{id}/download/{file}` | Download subtitle file |
+
+Endpoint naming note:
+- The upload endpoint is implemented under `VideoController` route: `/api/video/upload`.
 
 ## Configuration
 

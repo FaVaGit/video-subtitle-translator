@@ -76,6 +76,8 @@ else
     if [ "$HAS_DOTNET" -eq 1 ] && [ "$HAS_NODE" -eq 1 ] && [ "$HAS_RUST" -eq 1 ]; then
         OPTIONS+=("desktop")
         LABELS+=("Desktop        (Tauri desktop app + backend)")
+        OPTIONS+=("desktop-release")
+        LABELS+=("Desktop Release (Build and run packaged desktop app)")
     fi
     if [ "$HAS_DOTNET" -eq 1 ]; then
         OPTIONS+=("api-only")
@@ -115,6 +117,7 @@ case "$MODE" in
     dev)            exec "$SCRIPT_DIR/run-dev.sh";;
     docker)         exec "$SCRIPT_DIR/run-docker.sh";;
     desktop)        exec "$SCRIPT_DIR/run-desktop.sh";;
+    desktop-release) exec "$SCRIPT_DIR/run-desktop-release.sh";;
     api-only)       exec "$SCRIPT_DIR/run-api-only.sh";;
     frontend-only)  exec "$SCRIPT_DIR/run-frontend-only.sh";;
     *)              echo -e "${RED}Unknown mode: $MODE${NC}"; exit 1;;

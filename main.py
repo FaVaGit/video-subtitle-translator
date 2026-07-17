@@ -52,18 +52,7 @@ def _detect_best_config() -> dict:
     except Exception:
         pass
 
-    # Check CUDA
-    try:
-        import ctranslate2
-        if ctranslate2.get_cuda_device_count() > 0:
-            info["backend"] = "ctranslate2"
-            info["device"] = "CUDA (GPU)"
-            info["details"] = "NVIDIA GPU — via CUDA + CTranslate2"
-            return info
-    except Exception:
-        pass
-
-    # CPU fallback
+    # CPU fallback (CTranslate2 on CPU)
     import platform
     cpu = platform.processor() or "Unknown CPU"
     info["details"] = f"CPU: {cpu} — no GPU acceleration available"

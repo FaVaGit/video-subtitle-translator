@@ -1,19 +1,26 @@
 @echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
-title Video Subtitle Translator - Desktop Mode (Tauri)
+title Video Subtitle Translator - Desktop Release
 
 set "ROOT=%~dp0.."
 cd /d "%ROOT%"
 
 echo.
-echo   [DESKTOP] Starting Tauri desktop app...
-echo   ═════════════════════════════════════════
+echo   [DESKTOP-RELEASE] Building and launching packaged app...
+echo   ═══════════════════════════════════════════════════════════
 echo.
 
 where node >nul 2>&1
 if %errorlevel% neq 0 (
     echo   [ERROR] Node.js not found. Install Node.js 22+.
+    pause
+    exit /b 1
+)
+
+where dotnet >nul 2>&1
+if %errorlevel% neq 0 (
+    echo   [ERROR] .NET SDK not found.
     pause
     exit /b 1
 )
@@ -33,12 +40,12 @@ if %errorlevel% neq 0 (
 )
 
 :: ── NATS ──
-echo   [1/3] NATS server...
+echo   [1/4] NATS server...
 set "NATS_STARTED=0"
 netstat -an 2>nul | findstr ":4222 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel%==0 (
     echo         Already running
-    goto :desk_nats_ok
+    goto :nats_ok
 )
 where nats-server >nul 2>&1
 if %errorlevel%==0 (
@@ -46,7 +53,7 @@ if %errorlevel%==0 (
     start "NATS Server" /min nats-server --jetstream --store_dir "%ROOT%\data\nats"
     set "NATS_STARTED=local"
     timeout /t 2 /nobreak >nul
-    goto :desk_nats_ok
+    goto :nats_ok
 )
 where docker >nul 2>&1
 if %errorlevel%==0 (
@@ -55,19 +62,19 @@ if %errorlevel%==0 (
         docker run -d --name vst-nats -p 4222:4222 -p 8222:8222 nats:2.11-alpine --jetstream >nul 2>&1 || docker start vst-nats >nul 2>&1
         set "NATS_STARTED=docker"
         timeout /t 2 /nobreak >nul
-        goto :desk_nats_ok
+        goto :nats_ok
     )
 )
 echo         [ERROR] No NATS available.
 pause
 exit /b 1
 
-:desk_nats_ok
+:nats_ok
 echo         [OK]
 echo.
 
 :: ── Backend ──
-echo   [2/3] Building and starting backend...
+echo   [2/4] Starting backend...
 cd /d "%ROOT%\src\Backend"
 dotnet build --nologo -q >nul 2>&1
 start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
@@ -75,20 +82,32 @@ start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build
 echo         [OK]
 echo.
 
-:: ── Tauri ──
-echo   [3/3] Starting Tauri...
-echo.
-echo         API       http://localhost:5000
-echo         Desktop   Tauri window will open
-echo.
-
+:: ── Build desktop ──
+echo   [3/4] Building desktop app...
 cd /d "%ROOT%\src\Frontend"
 if not exist "node_modules" npm install --silent >nul 2>&1
-
 cd /d "%ROOT%\src\Desktop\src-tauri"
-cargo tauri dev
+cargo tauri build
+if %errorlevel% neq 0 (
+    echo         [ERROR] Desktop build failed.
+    goto :cleanup
+)
+echo         [OK]
+echo.
 
-:: Cleanup
+:: ── Launch packaged binary ──
+echo   [4/4] Launching packaged desktop app...
+set "APP_EXE=%ROOT%\src\Desktop\src-tauri\target\release\video-subtitle-translator.exe"
+if not exist "%APP_EXE%" (
+    echo         [ERROR] Executable not found: %APP_EXE%
+    goto :cleanup
+)
+echo         API       http://localhost:5000
+echo         Desktop   %APP_EXE%
+echo.
+"%APP_EXE%"
+
+:cleanup
 echo.
 echo   Shutting down...
 taskkill /fi "WINDOWTITLE eq VST Worker" /f >nul 2>&1

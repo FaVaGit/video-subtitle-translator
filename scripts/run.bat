@@ -80,6 +80,10 @@ if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" if "%HAS_RUST%"=="1" if "%CAN_NATS%"
     set /a OPT+=1
     set "OPT_!OPT!=desktop"
     echo     !OPT!. Desktop        - Tauri app + backend
+
+    set /a OPT+=1
+    set "OPT_!OPT!=desktop-release"
+    echo     !OPT!. Desktop Release - Build and run packaged desktop app
 )
 
 :: API only requires: dotnet
@@ -122,6 +126,7 @@ echo.
 if "%MODE%"=="dev" call "%~dp0run-dev.bat"
 if "%MODE%"=="docker" call "%~dp0run-docker.bat"
 if "%MODE%"=="desktop" call "%~dp0run-desktop.bat"
+if "%MODE%"=="desktop-release" call "%~dp0run-desktop-release.bat"
 if "%MODE%"=="api-only" call "%~dp0run-api-only.bat"
 if "%MODE%"=="frontend-only" call "%~dp0run-frontend-only.bat"
 
