@@ -99,6 +99,24 @@ echo   Ctrl+C in this window stops everything.
 echo   ─────────────────────────────────────────
 echo.
 
+set "FRONTEND_DIR=%ROOT%\src\Frontend"
+set "FRONTEND_REUSED=0"
+set "PID5173="
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5173 " ^| findstr "LISTENING"') do (
+    if not defined PID5173 set "PID5173=%%P"
+)
+
+if defined PID5173 (
+    tasklist /FI "PID eq !PID5173!" | findstr /I "node.exe" >nul 2>&1
+    if !errorlevel!==0 (
+        set "FRONTEND_REUSED=1"
+        echo   Reusing existing frontend instance on http://localhost:5173.
+    ) else (
+        echo   [WARN] Port 5173 is in use by another process ^(PID !PID5173!^).
+        echo   Frontend cannot start in strict mode until the port is free.
+    )
+)
+
 :: Start Worker (background window)
 cd /d "%ROOT%\src\Backend"
 start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
@@ -106,9 +124,16 @@ start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no
 :: Start API (background window)
 start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000"
 
-:: Start Frontend (foreground)
-cd /d "%ROOT%\src\Frontend"
-npm run dev
+if "!FRONTEND_REUSED!"=="1" (
+    echo.
+    echo   Frontend already running. Reusing existing server.
+    echo   Press Ctrl+C to stop backend services started by this script.
+    timeout /t -1 >nul
+) else (
+    :: Start Frontend (foreground)
+    cd /d "%ROOT%\src\Frontend"
+    npm run dev -- --strictPort
+)
 
 :: ── Cleanup ──
 echo.

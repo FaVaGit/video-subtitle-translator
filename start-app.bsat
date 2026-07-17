@@ -1,0 +1,8 @@
+@echo off
+setlocal
+cd /d "%~dp0"
+
+rem Compatibility alias: in case .bsat was used by mistake.
+call "%~dp0start-app.bat"
+
+endlocal

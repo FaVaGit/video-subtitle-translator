@@ -24,8 +24,13 @@ set "CAN_NATS=0"
 where dotnet >nul 2>&1 && set "HAS_DOTNET=1"
 where node >nul 2>&1 && set "HAS_NODE=1"
 where docker >nul 2>&1 && set "HAS_DOCKER=1"
-where cargo >nul 2>&1 && set "HAS_RUST=1"
 where nats-server >nul 2>&1 && set "HAS_NATS=1"
+
+where cargo >nul 2>&1
+if %errorlevel%==0 (
+    cargo --version >nul 2>&1
+    if %errorlevel%==0 set "HAS_RUST=1"
+)
 
 if "%HAS_DOCKER%"=="1" (
     docker info >nul 2>&1 && set "DOCKER_RUNNING=1"
@@ -102,7 +107,14 @@ if "%HAS_NODE%"=="1" (
 
 if "%OPT%"=="0" (
     echo   No runnable configuration found.
-    echo   Install at least one of: .NET SDK, Node.js, or Docker.
+    echo.
+    echo   Install options:
+    echo     winget install Microsoft.DotNet.SDK.9
+    echo     winget install OpenJS.NodeJS.LTS
+    echo     winget install Docker.DockerDesktop
+    echo     winget install Rustlang.Rustup
+    echo.
+    echo   Quick fallback: start-app.bat can auto-select web/frontend fallback.
     pause
     exit /b 1
 )
@@ -123,11 +135,84 @@ echo   Starting: %MODE%
 echo   ─────────────────────────────
 echo.
 
-if "%MODE%"=="dev" call "%~dp0run-dev.bat"
-if "%MODE%"=="docker" call "%~dp0run-docker.bat"
-if "%MODE%"=="desktop" call "%~dp0run-desktop.bat"
-if "%MODE%"=="desktop-release" call "%~dp0run-desktop-release.bat"
-if "%MODE%"=="api-only" call "%~dp0run-api-only.bat"
-if "%MODE%"=="frontend-only" call "%~dp0run-frontend-only.bat"
+set "HANDLED=0"
+
+if "%MODE%"=="dev" (
+    set "HANDLED=1"
+    if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" if "%CAN_NATS%"=="1" (
+        call "%~dp0run-dev.bat"
+    ) else (
+        echo   [WARN] Dev mode requires .NET + Node + NATS/Docker.
+        echo   Falling back to frontend-only.
+        call "%~dp0run-frontend-only.bat"
+    )
+)
+
+if "%MODE%"=="docker" (
+    set "HANDLED=1"
+    if "%DOCKER_RUNNING%"=="1" (
+        call "%~dp0run-docker.bat"
+    ) else (
+        echo   [WARN] Docker is not running.
+        echo   Start Docker Desktop and retry.
+        pause
+        exit /b 1
+    )
+)
+
+if "%MODE%"=="desktop" (
+    set "HANDLED=1"
+    if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" if "%HAS_RUST%"=="1" if "%CAN_NATS%"=="1" (
+        call "%~dp0run-desktop.bat"
+    ) else (
+        echo   [WARN] Desktop mode requires .NET + Node + Rust + NATS/Docker.
+        echo   Install Rust: winget install Rustlang.Rustup
+        echo   Falling back to frontend-only.
+        call "%~dp0run-frontend-only.bat"
+    )
+)
+
+if "%MODE%"=="desktop-release" (
+    set "HANDLED=1"
+    if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" if "%HAS_RUST%"=="1" (
+        call "%~dp0run-desktop-release.bat"
+    ) else (
+        echo   [WARN] Desktop release requires .NET + Node + Rust.
+        echo   Install Rust: winget install Rustlang.Rustup
+        echo   Falling back to frontend-only.
+        call "%~dp0run-frontend-only.bat"
+    )
+)
+
+if "%MODE%"=="api-only" (
+    set "HANDLED=1"
+    if "%HAS_DOTNET%"=="1" (
+        call "%~dp0run-api-only.bat"
+    ) else (
+        echo   [WARN] API mode requires .NET SDK.
+        echo   Install with: winget install Microsoft.DotNet.SDK.9
+        pause
+        exit /b 1
+    )
+)
+
+if "%MODE%"=="frontend-only" (
+    set "HANDLED=1"
+    if "%HAS_NODE%"=="1" (
+        call "%~dp0run-frontend-only.bat"
+    ) else (
+        echo   [WARN] Frontend mode requires Node.js.
+        echo   Install with: winget install OpenJS.NodeJS.LTS
+        pause
+        exit /b 1
+    )
+)
+
+if "%HANDLED%"=="0" (
+    echo   Unknown mode: %MODE%
+    echo   Valid modes: dev, docker, desktop, desktop-release, api-only, frontend-only
+    pause
+    exit /b 1
+)
 
 endlocal
