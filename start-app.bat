@@ -56,6 +56,15 @@ if exist "%APP_EXE%" (
 		echo   winget install OpenJS.NodeJS.LTS
 		echo   winget install Docker.DockerDesktop
 		echo.
+		call :ask_install_or_fallback
+		if /I "%INSTALL_DECISION%"=="I" (
+			call :install_missing_packages
+			echo.
+			echo Installation commands completed or skipped.
+			echo Relaunch start-app.bat to continue with updated environment.
+			pause
+			exit /b 0
+		)
 		echo Switching to web/dev alternative...
 		if "%HAS_NODE%"=="0" (
 			echo.
@@ -65,21 +74,43 @@ if exist "%APP_EXE%" (
 			pause
 			exit /b 1
 		)
-		if "%HAS_NATS%"=="1" if "%HAS_DOTNET%"=="1" (
-			echo Launching full web/dev mode...
-			echo   Frontend: http://localhost:5173
-			echo   API:      http://localhost:5000
-			echo   Note: if 5173 is busy, Vite will auto-switch port.
-			call "%~dp0scripts\run-dev.bat"
+		if "%HAS_NATS%"=="1" (
+			if "%HAS_DOTNET%"=="1" (
+				echo Launching full web/dev mode...
+				echo   Frontend: http://localhost:5173
+				echo   API:      http://localhost:5000
+				echo   Note: if 5173 is busy, Vite will auto-switch port.
+				call "%~dp0scripts\run-dev.bat"
+			) else (
+				echo Launching frontend-only mode.
+				echo .NET SDK not found: API/Worker cannot be started.
+				echo.
+				echo Install options to enable full processing:
+				echo   winget install Microsoft.DotNet.SDK.9
+				echo   winget install Docker.DockerDesktop
+				echo.
+				echo Processing/upload requires backend queue ^(NATS or Docker^).
+				echo Frontend URL: http://localhost:5173 ^(or next free port shown in terminal^)
+				call "%~dp0scripts\run-frontend-only.bat"
+			)
 		) else (
 			echo Launching frontend-only mode.
 			if "%HAS_DOTNET%"=="0" echo .NET SDK not found: API/Worker cannot be started.
-			if "%HAS_NATS%"=="0" echo NATS/Docker not available: queue runtime cannot be started.
+			echo NATS/Docker not available: queue runtime cannot be started.
 			echo.
 			echo Install options to enable full processing:
 			echo   winget install Microsoft.DotNet.SDK.9
 			echo   winget install Docker.DockerDesktop
 			echo.
+			call :ask_install_or_fallback
+			if /I "%INSTALL_DECISION%"=="I" (
+				call :install_missing_packages
+				echo.
+				echo Installation commands completed or skipped.
+				echo Relaunch start-app.bat to continue with updated environment.
+				pause
+				exit /b 0
+			)
 			echo Processing/upload requires backend queue ^(NATS or Docker^).
 			echo Frontend URL: http://localhost:5173 ^(or next free port shown in terminal^)
 			call "%~dp0scripts\run-frontend-only.bat"
@@ -87,4 +118,34 @@ if exist "%APP_EXE%" (
 	)
 )
 
-endlocal
+endlocal & exit /b 0
+
+:ask_install_or_fallback
+set "INSTALL_DECISION=F"
+echo Choose next action:
+echo   I = install missing dependencies now
+echo   F = continue with fallback mode
+choice /C IF /N /M "Select [I/F]: "
+if errorlevel 2 set "INSTALL_DECISION=F"
+if errorlevel 1 set "INSTALL_DECISION=I"
+exit /b 0
+
+:install_missing_packages
+if "%HAS_DOTNET%"=="0" call :install_package "Microsoft.DotNet.SDK.9"
+if "%HAS_NODE%"=="0" call :install_package "OpenJS.NodeJS.LTS"
+if "%HAS_CARGO%"=="0" call :install_package "Rustlang.Rustup"
+if "%HAS_NATS%"=="0" call :install_package "Docker.DockerDesktop"
+exit /b 0
+
+:install_package
+set "PKG=%~1"
+echo.
+echo Missing package: %PKG%
+choice /C YN /N /M "Run winget install %PKG% now? [Y/N]: "
+if errorlevel 2 (
+    echo Skipped %PKG%
+    exit /b 0
+)
+echo Running winget install %PKG% ...
+winget install %PKG%
+exit /b 0
