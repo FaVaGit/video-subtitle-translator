@@ -143,6 +143,13 @@ if "%MODE%"=="dev" (
         call "%~dp0run-dev.bat"
     ) else (
         echo   [WARN] Dev mode requires .NET + Node + NATS/Docker.
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            call :install_missing_packages
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
         echo   Falling back to frontend-only.
         call "%~dp0run-frontend-only.bat"
     )
@@ -154,9 +161,15 @@ if "%MODE%"=="docker" (
         call "%~dp0run-docker.bat"
     ) else (
         echo   [WARN] Docker is not running.
-        echo   Start Docker Desktop and retry.
-        pause
-        exit /b 1
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            call :install_package "Docker.DockerDesktop"
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
+        echo   Falling back to frontend-only.
+        call "%~dp0run-frontend-only.bat"
     )
 )
 
@@ -166,7 +179,13 @@ if "%MODE%"=="desktop" (
         call "%~dp0run-desktop.bat"
     ) else (
         echo   [WARN] Desktop mode requires .NET + Node + Rust + NATS/Docker.
-        echo   Install Rust: winget install Rustlang.Rustup
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            call :install_missing_packages
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
         echo   Falling back to frontend-only.
         call "%~dp0run-frontend-only.bat"
     )
@@ -178,7 +197,13 @@ if "%MODE%"=="desktop-release" (
         call "%~dp0run-desktop-release.bat"
     ) else (
         echo   [WARN] Desktop release requires .NET + Node + Rust.
-        echo   Install Rust: winget install Rustlang.Rustup
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            call :install_missing_packages
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
         echo   Falling back to frontend-only.
         call "%~dp0run-frontend-only.bat"
     )
@@ -190,9 +215,15 @@ if "%MODE%"=="api-only" (
         call "%~dp0run-api-only.bat"
     ) else (
         echo   [WARN] API mode requires .NET SDK.
-        echo   Install with: winget install Microsoft.DotNet.SDK.9
-        pause
-        exit /b 1
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            call :install_package "Microsoft.DotNet.SDK.9"
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
+        echo   Falling back to frontend-only.
+        call "%~dp0run-frontend-only.bat"
     )
 )
 
@@ -202,7 +233,14 @@ if "%MODE%"=="frontend-only" (
         call "%~dp0run-frontend-only.bat"
     ) else (
         echo   [WARN] Frontend mode requires Node.js.
-        echo   Install with: winget install OpenJS.NodeJS.LTS
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            call :install_package "OpenJS.NodeJS.LTS"
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
+        echo   No fallback available without Node.js.
         pause
         exit /b 1
     )
@@ -216,3 +254,33 @@ if "%HANDLED%"=="0" (
 )
 
 endlocal
+
+:ask_install_or_fallback
+set "INSTALL_DECISION=F"
+echo   Choose next action:
+echo     I = install missing dependencies now
+echo     F = continue with fallback mode
+choice /C IF /N /M "   Select [I/F]: "
+if errorlevel 2 set "INSTALL_DECISION=F"
+if errorlevel 1 set "INSTALL_DECISION=I"
+exit /b 0
+
+:install_missing_packages
+if "%HAS_DOTNET%"=="0" call :install_package "Microsoft.DotNet.SDK.9"
+if "%HAS_NODE%"=="0" call :install_package "OpenJS.NodeJS.LTS"
+if "%HAS_RUST%"=="0" call :install_package "Rustlang.Rustup"
+if "%CAN_NATS%"=="0" call :install_package "Docker.DockerDesktop"
+exit /b 0
+
+:install_package
+set "PKG=%~1"
+echo.
+echo   Missing package: %PKG%
+choice /C YN /N /M "   Run winget install %PKG% now? [Y/N]: "
+if errorlevel 2 (
+    echo   Skipped %PKG%
+    exit /b 0
+)
+echo   Running winget install %PKG% ...
+winget install %PKG%
+exit /b 0
