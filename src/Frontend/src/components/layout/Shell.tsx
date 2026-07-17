@@ -17,13 +17,28 @@ const useStyles = makeStyles({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
-    backgroundColor: tokens.colorNeutralBackground1,
+    minHeight: '100vh',
+    backgroundColor: '#f5f5f5',
+    fontFamily: 'Segoe UI, Tahoma, sans-serif',
+  },
+  shell: {
+    width: '100%',
+    maxWidth: '1100px',
+    margin: '12px auto',
+    backgroundColor: '#ffffff',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    overflow: 'hidden',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
   },
   content: {
     flex: 1,
     overflow: 'auto',
-    padding: '16px',
+    padding: '12px',
+  },
+  tabs: {
+    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+    padding: '0 8px',
   },
 });
 
@@ -38,21 +53,23 @@ export function Shell() {
 
   return (
     <div className={styles.root}>
-      <CommandBar />
-      <TabList selectedValue={activeTab} onTabSelect={handleTabSelect}>
-        <Tab value="upload">Upload & Process</Tab>
-        <Tab value="player" disabled={jobStatus !== 'completed'}>
-          Player
-        </Tab>
-      </TabList>
-      <div className={styles.content}>
-        {activeTab === 'upload' && (
-          <>
-            <VideoUploader />
-            <JobProgress />
-          </>
-        )}
-        {activeTab === 'player' && <VideoPlayer />}
+      <div className={styles.shell}>
+        <CommandBar />
+        <TabList className={styles.tabs} selectedValue={activeTab} onTabSelect={handleTabSelect}>
+          <Tab value="upload">🎬 Transcribe</Tab>
+          <Tab value="player" disabled={jobStatus !== 'completed'}>
+            ▶ Player
+          </Tab>
+        </TabList>
+        <div className={styles.content}>
+          {activeTab === 'upload' && (
+            <>
+              <VideoUploader />
+              <JobProgress />
+            </>
+          )}
+          {activeTab === 'player' && <VideoPlayer />}
+        </div>
       </div>
     </div>
   );

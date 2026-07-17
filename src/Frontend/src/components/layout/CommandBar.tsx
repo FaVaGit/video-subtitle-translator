@@ -1,26 +1,28 @@
 import {
-  Toolbar,
-  ToolbarButton,
   makeStyles,
   tokens,
   Text,
 } from '@fluentui/react-components';
 import {
   VideoClipRegular,
-  DarkThemeRegular,
 } from '@fluentui/react-icons';
 
 const useStyles = makeStyles({
   toolbar: {
-    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
-    padding: '4px 16px',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    padding: '10px 14px',
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '10px',
+    backgroundColor: '#fafafa',
   },
   title: {
-    fontWeight: tokens.fontWeightSemibold,
-    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightBold,
+    fontSize: '18px',
+  },
+  subtitle: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase200,
   },
   spacer: {
     flex: 1,
@@ -32,12 +34,12 @@ export function CommandBar() {
 
   return (
     <div className={styles.toolbar}>
-      <VideoClipRegular fontSize={24} />
-      <Text className={styles.title}>Video Subtitle Translator</Text>
+      <VideoClipRegular fontSize={22} />
+      <div>
+        <Text className={styles.title}>Video Subtitle Translator</Text>
+        <Text className={styles.subtitle}>Desktop-style workflow: files, settings, progress, log</Text>
+      </div>
       <div className={styles.spacer} />
-      <Toolbar>
-        <ToolbarButton icon={<DarkThemeRegular />} aria-label="Toggle theme" />
-      </Toolbar>
     </div>
   );
 }
