@@ -16,6 +16,7 @@ Legacy Python files (`main.py`, `cli.py`, `engine.py`) are still in the reposito
 - Desktop can run without Python using Tauri (`run-desktop.bat` / `run-desktop-release.bat`).
 - Transcription engine implementation in `OnnxWhisperEngine` is scaffolded, but ONNX inference is still a placeholder.
 - Player tab is always accessible (Python-like UX); actual video/subtitle playback is available after a processed job is present.
+- Player can load a local video directly from the Player tab (without going through Transcribe first).
 
 ## Prerequisites
 
@@ -41,6 +42,7 @@ Available launcher modes are auto-detected based on installed tools:
 - `desktop-release`: build and run packaged Tauri binary + backend (+ NATS)
 - `api-only`
 - `frontend-only`
+- `mcp`: MCP server with video tools + GitHub-authenticated AI session
 
 ## Quick Start (Linux/macOS)
 
@@ -70,6 +72,30 @@ Both flows use .NET + Node + Rust and do not require Python.
 - `GET /api/player/{jobId}/subtitles/{lang}`
 - `GET /api/subtitle/{jobId}`
 - `GET /api/subtitle/{jobId}/download/{fileName}`
+
+## MCP Server (GitHub-authenticated)
+
+The repository includes an MCP server under `mcp-server/` with tools to operate on video content directly:
+- `video_probe`
+- `video_extract_frame`
+- `video_extract_audio`
+- `github_models_chat` (uses `GITHUB_TOKEN` for GitHub-authenticated model calls)
+
+Run on Windows:
+
+```bat
+scripts\run-mcp.bat
+```
+
+Run on Linux/macOS:
+
+```bash
+./scripts/run-mcp.sh
+```
+
+Authentication note:
+- Direct reuse of VS Code Copilot internal auth token is not supported.
+- The provided flow uses GitHub authentication via `GITHUB_TOKEN` (automatically imported from `gh auth token` when available).
 
 ## Repository Layout
 

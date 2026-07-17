@@ -117,6 +117,7 @@ Linux/macOS:
 ```
 
 The launcher auto-detects tools and offers available modes (`dev`, `docker`, `desktop`, `desktop-release`, `api-only`, `frontend-only`).
+It also supports `mcp` for the local MCP server session.
 
 ### Development Setup
 
@@ -175,7 +176,8 @@ Linux/macOS:
 - **Subtitle Formats**: SRT and WebVTT output
 - **Player**:
   - Player tab is always enabled (aligned with desktop Python UX)
-  - Shows placeholder state until a processed job is available
+  - Supports direct local video loading from Player tab
+  - Processed-job tracks are available when backend output exists
   - HTML5 video with range-based seeking
   - Fabric.js canvas overlay for custom subtitle rendering
   - Panel mode for subtitle display below video
@@ -188,6 +190,24 @@ Linux/macOS:
 
 Implementation status caveat:
 - Speech recognition pipeline wiring exists, but ONNX inference implementation is pending.
+
+## MCP Integration
+
+An MCP server is included in `mcp-server/` to enable direct operations on video files and GitHub-authenticated AI calls.
+
+Available tools:
+- `video_probe` (ffprobe metadata)
+- `video_extract_frame` (single-frame extraction)
+- `video_extract_audio` (mono 16k wav extraction)
+- `github_models_chat` (GitHub-authenticated model call via `GITHUB_TOKEN`)
+
+Run scripts:
+- Windows: `scripts\run-mcp.bat`
+- Linux/macOS: `./scripts/run-mcp.sh`
+
+Authentication note:
+- Internal Copilot session tokens are not exposed for external MCP usage.
+- Use GitHub authentication (`gh auth login`) and `GITHUB_TOKEN` for model access.
 
 ## API Endpoints
 

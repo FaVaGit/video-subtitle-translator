@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   makeStyles,
   tokens,
@@ -9,6 +9,7 @@ import {
   Toolbar,
   ToolbarButton,
   Text,
+  Field,
 } from '@fluentui/react-components';
 import {
   PlayRegular,
@@ -61,17 +62,59 @@ export function VideoPlayer() {
   const [tracks, setTracks] = useState<SubtitleTrack[]>([]);
   const [cues, setCues] = useState<SubtitleCue[]>([]);
   const [currentLang, setCurrentLang] = useState('en');
+  const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null);
+  const [localVideoName, setLocalVideoName] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useVideoSync(cues);
 
-  useEffect(() => {
-    if (!jobId) return;
-    getTracks(jobId).then(setTracks);
-  }, [jobId]);
+  const videoSrc = localVideoUrl ?? (jobId ? getVideoStreamUrl(jobId) : null);
 
   useEffect(() => {
+    if (localVideoUrl) {
+      setTracks([]);
+      setCues([]);
+      return;
+    }
+
+    if (!jobId) return;
+    getTracks(jobId).then(setTracks);
+  }, [jobId, localVideoUrl]);
+
+  useEffect(() => {
+    if (localVideoUrl) return;
     if (!jobId || !currentLang) return;
     getSubtitleCues(jobId, currentLang).then(setCues);
-  }, [jobId, currentLang]);
+  }, [jobId, currentLang, localVideoUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (localVideoUrl) URL.revokeObjectURL(localVideoUrl);
+    };
+  }, [localVideoUrl]);
+
+  const handlePickLocalVideo = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleLocalVideoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (localVideoUrl) URL.revokeObjectURL(localVideoUrl);
+
+    const nextUrl = URL.createObjectURL(file);
+    setLocalVideoUrl(nextUrl);
+    setLocalVideoName(file.name);
+    setCurrentLang('en');
+  };
+
+  const clearLocalVideo = () => {
+    if (localVideoUrl) URL.revokeObjectURL(localVideoUrl);
+    setLocalVideoUrl(null);
+    setLocalVideoName('');
+    setTracks([]);
+    setCues([]);
+  };
 
   const togglePlayPause = () => {
     const video = videoRef.current;
@@ -90,15 +133,40 @@ export function VideoPlayer() {
     if (wrapper?.requestFullscreen) wrapper.requestFullscreen();
   };
 
-  if (!jobId) return <Text>No video loaded. Complete a transcription first.</Text>;
-
   return (
     <Card className={styles.container}>
+      <div className={styles.trackBar}>
+        <Field label="Local video">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".mp4,.mkv,.avi,.mov,.webm,.wmv,.flv"
+            onChange={handleLocalVideoSelected}
+            style={{ display: 'none' }}
+          />
+          <Button onClick={handlePickLocalVideo} appearance="secondary">
+            Browse local video
+          </Button>
+        </Field>
+        {localVideoName && <Text>{localVideoName}</Text>}
+        {localVideoUrl && (
+          <Button appearance="subtle" onClick={clearLocalVideo}>
+            Use processed video instead
+          </Button>
+        )}
+      </div>
+
+      {!videoSrc && (
+        <div className={styles.trackBar}>
+          <Text>No video selected yet. Choose a local file or process one from Transcribe.</Text>
+        </div>
+      )}
+
       <div className={styles.videoWrapper}>
         <video
           ref={videoRef}
           className={styles.video}
-          src={getVideoStreamUrl(jobId)}
+          src={videoSrc ?? undefined}
         />
         {(mode === 'overlay' || mode === 'dual') && (
           <SubtitleOverlay activeCues={activeCues} style={style} />
@@ -120,23 +188,25 @@ export function VideoPlayer() {
         </Toolbar>
       </div>
 
-      <div className={styles.trackBar}>
-        <SubtitlesRegular />
-        <Select
-          value={currentLang}
-          onChange={(_, d) => setCurrentLang(d.value)}
-        >
-          {tracks.map((t) => (
-            <option key={t.language} value={t.language}>{t.label}</option>
-          ))}
-        </Select>
-        <ToggleButton
-          checked={mode === 'overlay'}
-          onClick={() => setMode(mode === 'overlay' ? 'panel' : 'overlay')}
-        >
-          {mode === 'overlay' ? 'Overlay' : 'Panel'}
-        </ToggleButton>
-      </div>
+      {!localVideoUrl && tracks.length > 0 && (
+        <div className={styles.trackBar}>
+          <SubtitlesRegular />
+          <Select
+            value={currentLang}
+            onChange={(_, d) => setCurrentLang(d.value)}
+          >
+            {tracks.map((t) => (
+              <option key={t.language} value={t.language}>{t.label}</option>
+            ))}
+          </Select>
+          <ToggleButton
+            checked={mode === 'overlay'}
+            onClick={() => setMode(mode === 'overlay' ? 'panel' : 'overlay')}
+          >
+            {mode === 'overlay' ? 'Overlay' : 'Panel'}
+          </ToggleButton>
+        </div>
+      )}
 
       {(mode === 'panel' || mode === 'dual') && (
         <SubtitlePanel activeCues={activeCues} />

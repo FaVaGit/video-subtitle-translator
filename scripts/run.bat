@@ -103,6 +103,10 @@ if "%HAS_NODE%"=="1" (
     set /a OPT+=1
     set "OPT_!OPT!=frontend-only"
     echo     !OPT!. Frontend Only  - React dev server on :5173
+
+    set /a OPT+=1
+    set "OPT_!OPT!=mcp"
+    echo     !OPT!. MCP Server     - Video tools + GitHub-authenticated AI session
 )
 
 if "%OPT%"=="0" (
@@ -246,9 +250,28 @@ if "%MODE%"=="frontend-only" (
     )
 )
 
+if "%MODE%"=="mcp" (
+    set "HANDLED=1"
+    if "%HAS_NODE%"=="1" (
+        call "%~dp0run-mcp.bat"
+    ) else (
+        echo   [WARN] MCP mode requires Node.js.
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            call :install_package "OpenJS.NodeJS.LTS"
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
+        echo   No fallback available without Node.js.
+        pause
+        exit /b 1
+    )
+)
+
 if "%HANDLED%"=="0" (
     echo   Unknown mode: %MODE%
-    echo   Valid modes: dev, docker, desktop, desktop-release, api-only, frontend-only
+    echo   Valid modes: dev, docker, desktop, desktop-release, api-only, frontend-only, mcp
     pause
     exit /b 1
 )

@@ -86,6 +86,8 @@ else
     if [ "$HAS_NODE" -eq 1 ]; then
         OPTIONS+=("frontend-only")
         LABELS+=("Frontend Only  (React dev server only)")
+        OPTIONS+=("mcp")
+        LABELS+=("MCP Server     (Video tools + GitHub-authenticated AI session)")
     fi
 
     if [ ${#OPTIONS[@]} -eq 0 ]; then
@@ -120,5 +122,6 @@ case "$MODE" in
     desktop-release) exec "$SCRIPT_DIR/run-desktop-release.sh";;
     api-only)       exec "$SCRIPT_DIR/run-api-only.sh";;
     frontend-only)  exec "$SCRIPT_DIR/run-frontend-only.sh";;
+    mcp)            exec "$SCRIPT_DIR/run-mcp.sh";;
     *)              echo -e "${RED}Unknown mode: $MODE${NC}"; exit 1;;
 esac
