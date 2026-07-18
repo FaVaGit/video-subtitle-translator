@@ -10,6 +10,13 @@ import {
 } from '@fluentui/react-components';
 
 const TOKEN_KEY = 'vst.github.token';
+const TOKEN_META_KEY = 'vst.github.token.meta';
+
+type SavedMeta = {
+  login: string | null;
+  expiresAt: string | null;
+  savedAt: string;
+};
 
 const useStyles = makeStyles({
   section: {
@@ -40,15 +47,69 @@ const useStyles = makeStyles({
 
 export function McpAuthPanel() {
   const styles = useStyles();
+  const [savedMeta, setSavedMeta] = useState<SavedMeta | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const raw = localStorage.getItem(TOKEN_META_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as SavedMeta;
+    } catch {
+      return null;
+    }
+  });
+  const [hasSavedToken, setHasSavedToken] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return !!localStorage.getItem(TOKEN_KEY);
+  });
   const [token, setToken] = useState('');
-  const [savedUser, setSavedUser] = useState<string | null>(null);
+  const [savedUser, setSavedUser] = useState<string | null>(savedMeta?.login ?? null);
+  const [savedExpiry, setSavedExpiry] = useState<string | null>(savedMeta?.expiresAt ?? null);
   const [validating, setValidating] = useState(false);
   const [status, setStatus] = useState<string>('Not authenticated');
 
-  const hasSavedToken = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    return !!localStorage.getItem(TOKEN_KEY);
-  }, []);
+  const expiryText = useMemo(() => {
+    if (!savedExpiry) return 'Not provided by GitHub for this token.';
+    const date = new Date(savedExpiry);
+    if (Number.isNaN(date.getTime())) return savedExpiry;
+    return date.toLocaleString();
+  }, [savedExpiry]);
+
+  const expiryState = useMemo(() => {
+    if (!savedExpiry) {
+      return {
+        label: 'Expiry unknown',
+        color: 'informative' as const,
+      };
+    }
+
+    const date = new Date(savedExpiry);
+    if (Number.isNaN(date.getTime())) {
+      return {
+        label: 'Expiry format unknown',
+        color: 'informative' as const,
+      };
+    }
+
+    const daysLeft = Math.floor((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (daysLeft < 0) {
+      return {
+        label: 'Token expired',
+        color: 'danger' as const,
+      };
+    }
+
+    if (daysLeft <= 7) {
+      return {
+        label: `Expiring soon (${daysLeft}d)`,
+        color: 'warning' as const,
+      };
+    }
+
+    return {
+      label: `Valid (${daysLeft}d left)`,
+      color: 'success' as const,
+    };
+  }, [savedExpiry]);
 
   const openGitHubAuth = () => {
     window.open('https://github.com/settings/tokens', '_blank', 'noopener,noreferrer');
@@ -77,8 +138,10 @@ export function McpAuthPanel() {
 
       const json = await res.json();
       const login = json?.login ? String(json.login) : 'authenticated-user';
-      setStatus(`Authenticated as ${login}`);
-      return login;
+      const expiresAt = res.headers.get('github-authentication-token-expiration');
+      const expiryMsg = expiresAt ? ` | expires: ${expiresAt}` : ' | expiration header not provided';
+      setStatus(`Authenticated as ${login}${expiryMsg}`);
+      return { login, expiresAt };
     } catch {
       setStatus('Unable to validate token from browser network context.');
       return null;
@@ -88,22 +151,39 @@ export function McpAuthPanel() {
   };
 
   const handleValidate = async () => {
-    const login = await validateToken(token);
-    if (login) setSavedUser(login);
+    const validated = await validateToken(token);
+    if (!validated) return;
+    setSavedUser(validated.login);
+    setSavedExpiry(validated.expiresAt);
   };
 
   const handleSave = async () => {
-    const login = await validateToken(token);
-    if (!login) return;
+    const validated = await validateToken(token);
+    if (!validated) return;
+
     localStorage.setItem(TOKEN_KEY, token.trim());
-    setSavedUser(login);
-    setStatus(`Saved locally for browser session usage (${login}).`);
+    const meta: SavedMeta = {
+      login: validated.login,
+      expiresAt: validated.expiresAt,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(TOKEN_META_KEY, JSON.stringify(meta));
+
+    setHasSavedToken(true);
+    setSavedMeta(meta);
+    setSavedUser(validated.login);
+    setSavedExpiry(validated.expiresAt);
+    setStatus(`Saved locally for browser session usage (${validated.login}).`);
   };
 
   const handleClear = () => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_META_KEY);
     setToken('');
+    setHasSavedToken(false);
+    setSavedMeta(null);
     setSavedUser(null);
+    setSavedExpiry(null);
     setStatus('Authentication cleared from local storage.');
   };
 
@@ -115,6 +195,9 @@ export function McpAuthPanel() {
       </Text>
       <Text block className={styles.hint}>
         For MCP runtime, then start mode mcp from launcher (scripts/run.bat mcp).
+      </Text>
+      <Text block className={styles.hint}>
+        Persistent MCP authentication recommended: run gh auth login once in terminal.
       </Text>
 
       <Field label="GitHub token (PAT or fine-grained token)">
@@ -146,6 +229,23 @@ export function McpAuthPanel() {
           {savedUser || hasSavedToken ? 'Authenticated (local)' : 'Not authenticated'}
         </Badge>
       </div>
+
+      {(savedUser || hasSavedToken) && (
+        <>
+          <Text block className={styles.hint}>
+            Token expiry: {expiryText}
+          </Text>
+          <Badge appearance="filled" color={expiryState.color}>
+            {expiryState.label}
+          </Badge>
+        </>
+      )}
+
+      {savedMeta?.savedAt && (
+        <Text block className={styles.hint}>
+          Saved at: {new Date(savedMeta.savedAt).toLocaleString()}
+        </Text>
+      )}
 
       <Text block className={styles.hint}>{status}</Text>
     </div>
