@@ -156,6 +156,12 @@ export function VideoPlayer() {
         )}
       </div>
 
+      <div className={styles.trackBar}>
+        <Text>
+          The picker only shows supported video files. Folders with only images or unsupported files can appear empty.
+        </Text>
+      </div>
+
       {!videoSrc && (
         <div className={styles.trackBar}>
           <Text>No video selected yet. Choose a local file or process one from Transcribe.</Text>

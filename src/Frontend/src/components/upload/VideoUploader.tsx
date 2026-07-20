@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   makeStyles,
   tokens,
@@ -104,6 +104,7 @@ export function VideoUploader() {
   const [modelSize, setModelSize] = useState('medium');
   const [burnSubs, setBurnSubs] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setJob = useJobStore((s) => s.setJob);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,6 +139,10 @@ export function VideoUploader() {
     });
   };
 
+  const handlePickVideo = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <div className={styles.root}>
       <div className={styles.section}>
@@ -145,13 +150,15 @@ export function VideoUploader() {
         <div className={styles.row}>
           <Label>Input video:</Label>
           <Input value={file?.name ?? ''} readOnly placeholder="Select a video file..." />
-          <Button appearance="secondary">Browse…</Button>
+          <Button appearance="secondary" onClick={handlePickVideo}>Browse…</Button>
         </div>
         <div className={styles.dropzone}>
           <ArrowUploadRegular fontSize={36} />
           <Text block>Drag and drop a video file or click Browse</Text>
           <Text block className={styles.tiny}>Supported: mp4, mkv, avi, mov, webm</Text>
+          <Text block className={styles.tiny}>Folders with only images or unsupported files can appear empty in the picker.</Text>
           <input
+            ref={fileInputRef}
             type="file"
             accept=".mp4,.mkv,.avi,.mov,.webm"
             onChange={handleFileChange}
