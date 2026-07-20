@@ -145,6 +145,7 @@ export function VideoUploader() {
   const [modelSize, setModelSize] = useState('medium');
   const [burnSubs, setBurnSubs] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [localPath, setLocalPath] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -163,6 +164,7 @@ export function VideoUploader() {
     if (!file) return;
     if (targetLangs.length === 0) return;
     setUploading(true);
+    setUploadPercent(0);
     setUploadError('');
     try {
       const uploadRequest = () => uploadVideo(file, {
@@ -170,7 +172,7 @@ export function VideoUploader() {
         targetLanguages: targetLangs.join(','),
         modelSize,
         burnSubtitles: burnSubs,
-      });
+      }, setUploadPercent);
 
       let result;
       try {
@@ -200,6 +202,7 @@ export function VideoUploader() {
       setUploadError(await getUploadErrorMessage(error));
     } finally {
       setUploading(false);
+      setUploadPercent(0);
     }
   };
 
@@ -333,7 +336,7 @@ export function VideoUploader() {
         <Text className={styles.sectionTitle}>Actions</Text>
         <div className={styles.actions}>
           <Button appearance="primary" disabled={!file || uploading || targetLangs.length === 0} onClick={handleSubmit}>
-            {uploading ? 'Uploading...' : '▶ Start Processing'}
+            {uploading ? `Uploading... ${uploadPercent}%` : '▶ Start Processing'}
           </Button>
           <Button appearance="secondary" disabled={!localPath.trim() || uploading || targetLangs.length === 0} onClick={handleSubmitLocalPath}>
             {uploading ? 'Starting...' : '▶ Start from local path'}
