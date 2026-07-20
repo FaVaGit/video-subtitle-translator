@@ -92,6 +92,14 @@ async function getUploadErrorMessage(error: unknown): Promise<string> {
       } catch {
         return 'Cannot reach backend API. Verify backend is running (Backend connected badge) and retry.';
       }
+
+    function isRetryableUploadError(error: unknown): boolean {
+      if (!axios.isAxiosError(error)) return false;
+      if (error.response) return false;
+
+      const code = error.code ?? '';
+      return code === 'ERR_NETWORK' || code === 'ECONNABORTED' || code === 'ECONNRESET';
+    }
     }
 
     const data = error.response?.data;
@@ -156,12 +164,30 @@ export function VideoUploader() {
     setUploading(true);
     setUploadError('');
     try {
-      const result = await uploadVideo(file, {
+      const uploadRequest = () => uploadVideo(file, {
         sourceLanguage: sourceLanguage === 'auto' ? undefined : sourceLanguage,
         targetLanguages: targetLangs.join(','),
         modelSize,
         burnSubtitles: burnSubs,
       });
+
+      let result;
+      try {
+        result = await uploadRequest();
+      } catch (firstError) {
+        if (isRetryableUploadError(firstError)) {
+          try {
+            await getHealthStatus();
+            result = await uploadRequest();
+          } catch (retryError) {
+            setUploadError(await getUploadErrorMessage(retryError));
+            return;
+          }
+        } else {
+          throw firstError;
+        }
+      }
+
       const mode = result.status === 'processing-direct' ? 'direct' : result.status === 'queued' ? 'queue' : 'unknown';
       const initialStage = result.detail ??
         (mode === 'direct'
