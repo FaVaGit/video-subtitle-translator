@@ -3,6 +3,7 @@ import httpClient from './httpClient';
 export interface UploadResponse {
   jobId: string;
   status: string;
+  detail?: string;
 }
 
 export interface SubtitleTrack {

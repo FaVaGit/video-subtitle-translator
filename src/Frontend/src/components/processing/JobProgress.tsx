@@ -46,7 +46,7 @@ const useStyles = makeStyles({
 
 export function JobProgress() {
   const styles = useStyles();
-  const { jobId, status, progress, stage } = useJobStore();
+  const { jobId, status, progress, stage, processingMode, streamStatus } = useJobStore();
   const [history, setHistory] = useState<string[]>([]);
   const elapsed = useMemo(() => `${Math.max(0, Math.round(progress))}%`, [progress]);
 
@@ -72,6 +72,36 @@ export function JobProgress() {
   const badgeColor = status === 'completed' ? 'success' :
     status === 'failed' ? 'danger' : 'informative';
 
+  const modeLabel = processingMode === 'direct'
+    ? 'Direct mode (no queue)'
+    : processingMode === 'queue'
+      ? 'Queue mode'
+      : 'Mode pending';
+
+  const streamLabel = streamStatus === 'connected'
+    ? 'Event stream connected'
+    : streamStatus === 'connecting'
+      ? 'Connecting event stream...'
+      : streamStatus === 'disconnected'
+        ? 'Event stream disconnected'
+        : 'Event stream idle';
+
+  const streamColor = streamStatus === 'connected'
+    ? 'success'
+    : streamStatus === 'connecting'
+      ? 'informative'
+      : streamStatus === 'disconnected'
+        ? 'danger'
+        : 'informative';
+
+  const userHint = streamStatus === 'disconnected'
+    ? 'Progress updates are interrupted. Keep this page open and retry start if the status does not change.'
+    : processingMode === 'direct'
+      ? 'Queue is unavailable: processing runs directly in API mode. This is slower but automatic.'
+      : processingMode === 'queue'
+        ? 'Queue mode active: job is processed asynchronously by worker services.'
+        : 'Preparing processing context...';
+
   return (
     <div className={styles.section}>
       <Text className={styles.sectionTitle}>Progress</Text>
@@ -80,10 +110,13 @@ export function JobProgress() {
           <Badge color={badgeColor} appearance="filled">
             {status}
           </Badge>
+          <Badge appearance="tint">{modeLabel}</Badge>
+          <Badge color={streamColor} appearance="tint">{streamLabel}</Badge>
           <Text weight="semibold">▶ {stage || 'Ready'}</Text>
         </div>
         <ProgressBar value={progress / 100} />
         <Text size={200}>{elapsed} complete</Text>
+        <Text size={200}>{userHint}</Text>
         <Text className={styles.sectionTitle}>Log</Text>
         <div className={styles.log}>
           {history.length === 0 ? 'Waiting for progress events...' : history.join('\n')}

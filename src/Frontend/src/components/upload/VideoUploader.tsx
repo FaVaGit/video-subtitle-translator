@@ -130,6 +130,7 @@ export function VideoUploader() {
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setJob = useJobStore((s) => s.setJob);
+  const updateProgress = useJobStore((s) => s.updateProgress);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -151,7 +152,13 @@ export function VideoUploader() {
         modelSize,
         burnSubtitles: burnSubs,
       });
-      setJob(result.jobId);
+      const mode = result.status === 'processing-direct' ? 'direct' : result.status === 'queued' ? 'queue' : 'unknown';
+      const initialStage = result.detail ??
+        (mode === 'direct'
+          ? 'Queue unavailable: direct processing started in API mode.'
+          : 'Job queued. Waiting for worker progress...');
+      setJob(result.jobId, mode, initialStage);
+      updateProgress('queued', 0, initialStage);
     } catch (error) {
       setUploadError(getUploadErrorMessage(error));
     } finally {

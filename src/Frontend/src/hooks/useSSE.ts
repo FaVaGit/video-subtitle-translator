@@ -25,22 +25,30 @@ function mapStatus(status: string): JobStatus {
 export function useSSE(jobId: string | null) {
   const closeRef = useRef<(() => void) | null>(null);
   const updateProgress = useJobStore((s) => s.updateProgress);
+  const setStreamStatus = useJobStore((s) => s.setStreamStatus);
 
   useEffect(() => {
-    if (!jobId) return;
+    if (!jobId) {
+      setStreamStatus('idle');
+      return;
+    }
+
+    setStreamStatus('connecting');
 
     closeRef.current = createSSEConnection<ProgressEvent>(
       `/api/jobs/${jobId}/progress`,
       (data) => {
+        setStreamStatus('connected');
         updateProgress(mapStatus(data.status), data.progressPercent, data.stage);
       },
       () => {
-        // Connection closed
+        setStreamStatus('disconnected');
       }
     );
 
     return () => {
       closeRef.current?.();
+      setStreamStatus('idle');
     };
-  }, [jobId, updateProgress]);
+  }, [jobId, setStreamStatus, updateProgress]);
 }
