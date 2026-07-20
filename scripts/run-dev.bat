@@ -5,6 +5,8 @@ title Video Subtitle Translator - Development Mode
 
 set "ROOT=%~dp0.."
 cd /d "%ROOT%"
+set "WORKER_PID="
+set "API_PID="
 
 echo.
 echo   [DEV] Starting development environment...
@@ -120,10 +122,14 @@ if defined PID5173 (
 
 :: Start Worker (background window)
 cd /d "%ROOT%\src\Backend"
-start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
+for /f %%P in ('powershell -NoProfile -Command "$process = Start-Process -FilePath 'dotnet' -ArgumentList 'run --project VideoSubtitleTranslator.Worker --no-build' -WorkingDirectory '%ROOT%\src\Backend' -WindowStyle Hidden -PassThru; $process.Id"') do (
+    set "WORKER_PID=%%P"
+)
 
 :: Start API (background window)
-start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000"
+for /f %%P in ('powershell -NoProfile -Command "$process = Start-Process -FilePath 'dotnet' -ArgumentList 'run --project VideoSubtitleTranslator.Api --no-build --urls http://localhost:5000' -WorkingDirectory '%ROOT%\src\Backend' -WindowStyle Hidden -PassThru; $process.Id"') do (
+    set "API_PID=%%P"
+)
 
 if "!FRONTEND_REUSED!"=="1" (
     echo.
@@ -139,8 +145,8 @@ if "!FRONTEND_REUSED!"=="1" (
 :: ── Cleanup ──
 echo.
 echo   Shutting down...
-taskkill /fi "WINDOWTITLE eq VST Worker" /f >nul 2>&1
-taskkill /fi "WINDOWTITLE eq VST API" /f >nul 2>&1
+if defined WORKER_PID taskkill /PID !WORKER_PID! /T /F >nul 2>&1
+if defined API_PID taskkill /PID !API_PID! /T /F >nul 2>&1
 if "%NATS_STARTED%"=="local" (
     taskkill /fi "WINDOWTITLE eq NATS Server" /f >nul 2>&1
 )
