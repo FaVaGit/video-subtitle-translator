@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import axios from 'axios';
 import {
   makeStyles,
   tokens,
@@ -76,7 +77,29 @@ const useStyles = makeStyles({
   hwStrong: {
     fontWeight: tokens.fontWeightSemibold,
   },
+  errorText: {
+    color: tokens.colorPaletteRedForeground1,
+  },
 });
+
+function getUploadErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    if (data && typeof data === 'object') {
+      const detail = (data as { detail?: unknown }).detail;
+      const message = (data as { error?: unknown }).error;
+      if (typeof detail === 'string' && typeof message === 'string') {
+        return `${message} ${detail}`;
+      }
+      if (typeof detail === 'string') return detail;
+      if (typeof message === 'string') return message;
+    }
+    if (typeof data === 'string' && data.trim()) return data;
+    if (error.message) return error.message;
+  }
+
+  return 'Upload failed. Verify that the backend and queue are available, then retry.';
+}
 
 const MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'];
 const SOURCES = [
@@ -104,18 +127,23 @@ export function VideoUploader() {
   const [modelSize, setModelSize] = useState('medium');
   const [burnSubs, setBurnSubs] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setJob = useJobStore((s) => s.setJob);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
-    if (selected) setFile(selected);
+    if (selected) {
+      setFile(selected);
+      setUploadError('');
+    }
   }, []);
 
   const handleSubmit = async () => {
     if (!file) return;
     if (targetLangs.length === 0) return;
     setUploading(true);
+    setUploadError('');
     try {
       const result = await uploadVideo(file, {
         sourceLanguage: sourceLanguage === 'auto' ? undefined : sourceLanguage,
@@ -124,6 +152,8 @@ export function VideoUploader() {
         burnSubtitles: burnSubs,
       });
       setJob(result.jobId);
+    } catch (error) {
+      setUploadError(getUploadErrorMessage(error));
     } finally {
       setUploading(false);
     }
@@ -230,6 +260,7 @@ export function VideoUploader() {
             📂 Open output folder
           </Button>
         </div>
+        {uploadError && <Text block className={styles.errorText}>{uploadError}</Text>}
       </div>
     </div>
   );

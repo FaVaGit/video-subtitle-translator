@@ -94,26 +94,44 @@ if exist "%APP_EXE%" (
 				call "%~dp0scripts\run-frontend-only.bat"
 			)
 		) else (
-			echo Launching frontend-only mode.
-			if "%HAS_DOTNET%"=="0" echo .NET SDK not found: API/Worker cannot be started.
-			echo NATS/Docker not available: queue runtime cannot be started.
-			echo.
-			echo Install options to enable full processing:
-			echo   winget install Microsoft.DotNet.SDK.9
-			echo   winget install Docker.DockerDesktop
-			echo.
-			call :ask_install_or_fallback
-			if /I "%INSTALL_DECISION%"=="I" (
-				call :install_missing_packages
+			if "%HAS_DOTNET%"=="1" (
+				echo Launching web fallback mode.
+				echo API will start, but processing/upload remains unavailable until NATS or Docker is available.
 				echo.
-				echo Installation commands completed or skipped.
-				echo Relaunch start-app.bat to continue with updated environment.
-				pause
-				exit /b 0
+				echo Install options to enable full processing:
+				echo   winget install Docker.DockerDesktop
+				echo.
+				call :ask_install_or_fallback
+				if /I "%INSTALL_DECISION%"=="I" (
+					call :install_missing_packages
+					echo.
+					echo Installation commands completed or skipped.
+					echo Relaunch start-app.bat to continue with updated environment.
+					pause
+					exit /b 0
+				)
+				call "%~dp0scripts\run-web-lite.bat"
+			) else (
+				echo Launching frontend-only mode.
+				echo .NET SDK not found: API cannot be started.
+				echo NATS/Docker not available: queue runtime cannot be started.
+				echo.
+				echo Install options to enable full processing:
+				echo   winget install Microsoft.DotNet.SDK.9
+				echo   winget install Docker.DockerDesktop
+				echo.
+				call :ask_install_or_fallback
+				if /I "%INSTALL_DECISION%"=="I" (
+					call :install_missing_packages
+					echo.
+					echo Installation commands completed or skipped.
+					echo Relaunch start-app.bat to continue with updated environment.
+					pause
+					exit /b 0
+				)
+				echo Frontend URL: http://localhost:5173 ^(or next free port shown in terminal^)
+				call "%~dp0scripts\run-frontend-only.bat"
 			)
-			echo Processing/upload requires backend queue ^(NATS or Docker^).
-			echo Frontend URL: http://localhost:5173 ^(or next free port shown in terminal^)
-			call "%~dp0scripts\run-frontend-only.bat"
 		)
 	)
 )

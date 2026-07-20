@@ -100,6 +100,12 @@ if "%HAS_DOTNET%"=="1" (
 
 :: Frontend only requires: node
 if "%HAS_NODE%"=="1" (
+    if "%HAS_DOTNET%"=="1" (
+        set /a OPT+=1
+        set "OPT_!OPT!=web-lite"
+        echo     !OPT!. Web Fallback   - Frontend + API ^(processing disabled without NATS^)
+    )
+
     set /a OPT+=1
     set "OPT_!OPT!=frontend-only"
     echo     !OPT!. Frontend Only  - React dev server on :5173
@@ -154,8 +160,13 @@ if "%MODE%"=="dev" (
             pause
             exit /b 0
         )
-        echo   Falling back to frontend-only.
-        call "%~dp0run-frontend-only.bat"
+        if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" (
+            echo   Falling back to web fallback mode.
+            call "%~dp0run-web-lite.bat"
+        ) else (
+            echo   Falling back to frontend-only.
+            call "%~dp0run-frontend-only.bat"
+        )
     )
 )
 
@@ -172,8 +183,13 @@ if "%MODE%"=="docker" (
             pause
             exit /b 0
         )
-        echo   Falling back to frontend-only.
-        call "%~dp0run-frontend-only.bat"
+        if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" (
+            echo   Falling back to web fallback mode.
+            call "%~dp0run-web-lite.bat"
+        ) else (
+            echo   Falling back to frontend-only.
+            call "%~dp0run-frontend-only.bat"
+        )
     )
 )
 
@@ -190,8 +206,13 @@ if "%MODE%"=="desktop" (
             pause
             exit /b 0
         )
-        echo   Falling back to frontend-only.
-        call "%~dp0run-frontend-only.bat"
+        if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" (
+            echo   Falling back to web fallback mode.
+            call "%~dp0run-web-lite.bat"
+        ) else (
+            echo   Falling back to frontend-only.
+            call "%~dp0run-frontend-only.bat"
+        )
     )
 )
 
@@ -222,6 +243,25 @@ if "%MODE%"=="api-only" (
         call :ask_install_or_fallback
         if /I "!INSTALL_DECISION!"=="I" (
             call :install_package "Microsoft.DotNet.SDK.9"
+            echo   Relaunch scripts\run.bat to continue with updated environment.
+            pause
+            exit /b 0
+        )
+        echo   Falling back to frontend-only.
+        call "%~dp0run-frontend-only.bat"
+    )
+)
+
+if "%MODE%"=="web-lite" (
+    set "HANDLED=1"
+    if "%HAS_DOTNET%"=="1" if "%HAS_NODE%"=="1" (
+        call "%~dp0run-web-lite.bat"
+    ) else (
+        echo   [WARN] Web fallback mode requires .NET SDK + Node.js.
+        call :ask_install_or_fallback
+        if /I "!INSTALL_DECISION!"=="I" (
+            if "%HAS_DOTNET%"=="0" call :install_package "Microsoft.DotNet.SDK.9"
+            if "%HAS_NODE%"=="0" call :install_package "OpenJS.NodeJS.LTS"
             echo   Relaunch scripts\run.bat to continue with updated environment.
             pause
             exit /b 0
@@ -271,7 +311,7 @@ if "%MODE%"=="mcp" (
 
 if "%HANDLED%"=="0" (
     echo   Unknown mode: %MODE%
-    echo   Valid modes: dev, docker, desktop, desktop-release, api-only, frontend-only, mcp
+    echo   Valid modes: dev, docker, desktop, desktop-release, api-only, web-lite, frontend-only, mcp
     pause
     exit /b 1
 )
