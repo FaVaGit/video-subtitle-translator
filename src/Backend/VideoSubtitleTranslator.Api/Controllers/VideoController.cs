@@ -28,6 +28,15 @@ public class VideoController : ControllerBase
         _queueState = queueState;
     }
 
+    public sealed class LocalProcessRequest
+    {
+        public string VideoPath { get; set; } = string.Empty;
+        public string? SourceLanguage { get; set; }
+        public string TargetLanguages { get; set; } = "en";
+        public string ModelSize { get; set; } = "medium";
+        public bool BurnSubtitles { get; set; }
+    }
+
     [HttpPost("upload")]
     [RequestSizeLimit(2L * 1024 * 1024 * 1024)] // 2GB max
     public async Task<IActionResult> Upload(
@@ -92,5 +101,84 @@ public class VideoController : ControllerBase
         }
 
         return Ok(new { jobId, status = "queued" });
+    }
+
+    [HttpPost("process-local")]
+    public async Task<IActionResult> ProcessLocal(
+        [FromBody] LocalProcessRequest request,
+        CancellationToken ct = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.VideoPath))
+            return BadRequest("VideoPath is required.");
+
+        var path = request.VideoPath.Trim().Trim('"');
+        if (!Path.IsPathRooted(path))
+            return BadRequest("VideoPath must be an absolute local path.");
+
+        if (!System.IO.File.Exists(path))
+            return BadRequest("VideoPath does not exist.");
+
+        var allowedExtensions = new[] { ".mp4", ".mkv", ".avi", ".mov", ".webm" };
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        if (!allowedExtensions.Contains(ext))
+            return BadRequest($"Unsupported format: {ext}");
+
+        var targetLanguages = request.TargetLanguages
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+
+        if (targetLanguages.Count == 0)
+            targetLanguages.Add("en");
+
+        var jobId = Guid.NewGuid().ToString("N");
+        var options = new ProcessingOptions
+        {
+            SourceLanguage = request.SourceLanguage,
+            TargetLanguages = targetLanguages,
+            ModelSize = request.ModelSize,
+            BurnSubtitles = request.BurnSubtitles
+        };
+
+        var job = new JobCreatedEvent
+        {
+            JobId = jobId,
+            VideoPath = path,
+            Options = options
+        };
+
+        if (!_queueState.QueueAvailable)
+        {
+            _directProcessor.StartProcessingInBackground(job);
+            return Ok(new
+            {
+                jobId,
+                status = "processing-direct",
+                detail = "Local path accepted. Queue unavailable: running direct processing in API mode."
+            });
+        }
+
+        try
+        {
+            await _publisher.PublishJobAsync(job, ct);
+            return Ok(new
+            {
+                jobId,
+                status = "queued",
+                detail = "Local path accepted. Job queued for worker processing."
+            });
+        }
+        catch (NatsException)
+        {
+            _queueState.QueueAvailable = false;
+            _directProcessor.StartProcessingInBackground(job);
+            return Ok(new
+            {
+                jobId,
+                status = "processing-direct",
+                detail = "Local path accepted. Queue became unavailable: switched to direct processing in API mode."
+            });
+        }
     }
 }

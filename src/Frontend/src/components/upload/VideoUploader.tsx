@@ -11,7 +11,7 @@ import {
   Text,
 } from '@fluentui/react-components';
 import { ArrowUploadRegular } from '@fluentui/react-icons';
-import { uploadVideo } from '../../api/videoApi';
+import { processLocalVideo, uploadVideo } from '../../api/videoApi';
 import { getHealthStatus } from '../../api/httpClient';
 import { useJobStore } from '../../store/jobStore';
 
@@ -146,6 +146,7 @@ export function VideoUploader() {
   const [burnSubs, setBurnSubs] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [localPath, setLocalPath] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setJob = useJobStore((s) => s.setJob);
   const updateProgress = useJobStore((s) => s.updateProgress);
@@ -202,6 +203,35 @@ export function VideoUploader() {
     }
   };
 
+  const handleSubmitLocalPath = async () => {
+    const path = localPath.trim();
+    if (!path) return;
+    if (targetLangs.length === 0) return;
+
+    setUploading(true);
+    setUploadError('');
+    try {
+      const result = await processLocalVideo(path, {
+        sourceLanguage: sourceLanguage === 'auto' ? undefined : sourceLanguage,
+        targetLanguages: targetLangs.join(','),
+        modelSize,
+        burnSubtitles: burnSubs,
+      });
+
+      const mode = result.status === 'processing-direct' ? 'direct' : result.status === 'queued' ? 'queue' : 'unknown';
+      const initialStage = result.detail ??
+        (mode === 'direct'
+          ? 'Local path accepted: direct processing started in API mode.'
+          : 'Local path accepted. Job queued. Waiting for worker progress...');
+      setJob(result.jobId, mode, initialStage);
+      updateProgress('queued', 0, initialStage);
+    } catch (error) {
+      setUploadError(await getUploadErrorMessage(error));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const toggleLang = (code: string, checked: boolean) => {
     setTargetLangs((prev) => {
       if (checked) {
@@ -225,11 +255,20 @@ export function VideoUploader() {
           <Input value={file?.name ?? ''} readOnly placeholder="Select a video file..." />
           <Button appearance="secondary" onClick={handlePickVideo}>Browse…</Button>
         </div>
+        <div className={styles.rowNoButton}>
+          <Label>Local path:</Label>
+          <Input
+            value={localPath}
+            onChange={(_, d) => setLocalPath(d.value)}
+            placeholder="C:\\Videos\\myfile.mp4 (no upload, direct local processing)"
+          />
+        </div>
         <div className={styles.dropzone}>
           <ArrowUploadRegular fontSize={36} />
           <Text block>Drag and drop a video file or click Browse</Text>
           <Text block className={styles.tiny}>Supported: mp4, mkv, avi, mov, webm</Text>
           <Text block className={styles.tiny}>Folders with only images or unsupported files can appear empty in the picker.</Text>
+          <Text block className={styles.tiny}>If you prefer no browser upload flow, use Local path + Start from local path.</Text>
           <input
             ref={fileInputRef}
             type="file"
@@ -295,6 +334,9 @@ export function VideoUploader() {
         <div className={styles.actions}>
           <Button appearance="primary" disabled={!file || uploading || targetLangs.length === 0} onClick={handleSubmit}>
             {uploading ? 'Uploading...' : '▶ Start Processing'}
+          </Button>
+          <Button appearance="secondary" disabled={!localPath.trim() || uploading || targetLangs.length === 0} onClick={handleSubmitLocalPath}>
+            {uploading ? 'Starting...' : '▶ Start from local path'}
           </Button>
           <Button appearance="secondary" disabled>
             ■ Cancel

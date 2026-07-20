@@ -39,6 +39,25 @@ export async function uploadVideo(
   return response.data;
 }
 
+export async function processLocalVideo(
+  videoPath: string,
+  options: {
+    sourceLanguage?: string;
+    targetLanguages: string;
+    modelSize: string;
+    burnSubtitles: boolean;
+  }
+): Promise<UploadResponse> {
+  const response = await httpClient.post<UploadResponse>('/video/process-local', {
+    videoPath,
+    sourceLanguage: options.sourceLanguage,
+    targetLanguages: options.targetLanguages,
+    modelSize: options.modelSize,
+    burnSubtitles: options.burnSubtitles,
+  });
+  return response.data;
+}
+
 export async function getTracks(jobId: string): Promise<SubtitleTrack[]> {
   const response = await httpClient.get<SubtitleTrack[]>(`/player/${jobId}/tracks`);
   return response.data;
