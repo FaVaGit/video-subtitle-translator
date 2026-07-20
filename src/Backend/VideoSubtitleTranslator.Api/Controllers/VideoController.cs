@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using NATS.Client.Core;
 using VideoSubtitleTranslator.Core.Events;
 using VideoSubtitleTranslator.Core.Interfaces;
 using VideoSubtitleTranslator.Core.Models;
@@ -47,12 +48,24 @@ public class VideoController : ControllerBase
             BurnSubtitles = burnSubtitles
         };
 
-        await _publisher.PublishJobAsync(new JobCreatedEvent
+        try
         {
-            JobId = jobId,
-            VideoPath = _storage.GetVideoPath(jobId),
-            Options = options
-        }, ct);
+            await _publisher.PublishJobAsync(new JobCreatedEvent
+            {
+                JobId = jobId,
+                VideoPath = _storage.GetVideoPath(jobId),
+                Options = options
+            }, ct);
+        }
+        catch (NatsException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                error = "Job queue is unavailable.",
+                detail = "NATS is not reachable. Start the broker, then retry the upload.",
+                jobId
+            });
+        }
 
         return Ok(new { jobId, status = "queued" });
     }

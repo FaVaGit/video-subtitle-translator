@@ -36,9 +36,15 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Initialize NATS stream
-var nats = app.Services.GetRequiredService<INatsConnection>();
 var publisher = (NatsJobPublisher)app.Services.GetRequiredService<IJobPublisher>();
-await publisher.EnsureStreamAsync();
+try
+{
+    await publisher.EnsureStreamAsync();
+}
+catch (NatsException ex)
+{
+    app.Logger.LogWarning(ex, "NATS is unavailable. API will start, but job submission is disabled until the broker is reachable.");
+}
 
 if (app.Environment.IsDevelopment())
 {
