@@ -27,8 +27,12 @@ desktop.ini
 # Audio temp files
 *_audio.wav
 
-# Models cache (downloaded on first run)
-models/
+# Whisper GGML model cache (downloaded on first run) — anchored to the
+# specific runtime project paths so it never matches C# "Models" source
+# folders (e.g. VideoSubtitleTranslator.Core/Models), which git on Windows
+# would otherwise treat as equivalent due to case-insensitive matching.
+/src/Backend/VideoSubtitleTranslator.Api/models/
+/src/Backend/VideoSubtitleTranslator.Worker/models/
 
 # Pyright
 pyrightconfig.json

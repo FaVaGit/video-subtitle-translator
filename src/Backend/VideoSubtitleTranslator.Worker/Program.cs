@@ -2,10 +2,12 @@ using NATS.Client.Core;
 using VideoSubtitleTranslator.Core.Interfaces;
 using VideoSubtitleTranslator.Infrastructure.Audio;
 using VideoSubtitleTranslator.Infrastructure.Messaging;
+using VideoSubtitleTranslator.Infrastructure.Processing;
 using VideoSubtitleTranslator.Infrastructure.Storage;
 using VideoSubtitleTranslator.Infrastructure.Subtitle;
 using VideoSubtitleTranslator.Infrastructure.Transcription;
 using VideoSubtitleTranslator.Infrastructure.Translation;
+using VideoSubtitleTranslator.Infrastructure.Video;
 using VideoSubtitleTranslator.Worker.Consumers;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -21,9 +23,13 @@ builder.Services.AddSingleton<IFileStorage>(_ =>
     new LocalFileStorage(builder.Configuration.GetValue<string>("Storage:BasePath") ?? "./data"));
 builder.Services.AddSingleton<IAudioExtractor, FFmpegAudioExtractor>();
 builder.Services.AddSingleton<ITranscriptionEngine>(_ =>
-    new OnnxWhisperEngine(builder.Configuration.GetValue<string>("Whisper:ModelPath") ?? "./models/whisper-medium"));
+    new WhisperNetTranscriptionEngine(
+        builder.Configuration.GetValue<string>("Whisper:ModelsDirectory") ?? "./models",
+        builder.Configuration.GetValue<string>("Whisper:ModelSize") ?? "medium"));
 builder.Services.AddSingleton<ISubtitleGenerator, SrtGenerator>();
+builder.Services.AddSingleton<IVideoBurner, FFmpegSubtitleBurner>();
 builder.Services.AddHttpClient<ITranslationService, GoogleTranslateService>();
+builder.Services.AddSingleton<VideoProcessingPipeline>();
 
 // Worker
 builder.Services.AddHostedService<ProcessVideoConsumer>();

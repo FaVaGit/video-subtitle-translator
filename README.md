@@ -14,9 +14,21 @@ Legacy Python files (`main.py`, `cli.py`, `engine.py`) are still in the reposito
 
 - End-to-end API/frontend/desktop orchestration scripts are available under `scripts/`.
 - Desktop can run without Python using Tauri (`run-desktop.bat` / `run-desktop-release.bat`).
-- Transcription engine implementation in `OnnxWhisperEngine` is scaffolded, but ONNX inference is still a placeholder.
+- Transcription uses [Whisper.net](https://github.com/sandrohanea/whisper.net) (whisper.cpp bindings): real, offline, cross-platform speech-to-text with automatic model download on first use.
+- Behavior matches the reference Python engine: the detected/source-language transcript is always saved, only target languages that differ from it are translated, and subtitles can optionally be burned into a copy of the video (only when at least one translation was produced, burning the last requested target language — same rule as the Python engine).
+- Both the Worker (queue mode) and the API's direct-processing fallback (used automatically when NATS is unavailable) run through the exact same processing pipeline, so behavior never diverges between the two modes.
 - Player tab is always accessible (Python-like UX); actual video/subtitle playback is available after a processed job is present.
 - Player can load a local video directly from the Player tab (without going through Transcribe first).
+- A local-path processing mode (`POST /api/video/process-local`) lets you start a job directly from an absolute file path on disk, without a browser multipart upload.
+
+## Tests
+
+```bash
+cd src/Backend
+dotnet test
+```
+
+Covers subtitle language planning (skip/translate rules), SRT/VTT generation formatting, the shared processing pipeline orchestration (including burn-skip and temp-audio cleanup rules), and ffmpeg process regression tests that guard against stdout/stderr pipe deadlocks.
 
 ## Prerequisites
 
@@ -66,12 +78,14 @@ Both flows use .NET + Node + Rust and do not require Python.
 ## API Surface (Implemented)
 
 - `POST /api/video/upload`
+- `POST /api/video/process-local` (start a job from a local file path, no browser upload)
 - `GET /api/jobs/{jobId}/progress` (SSE)
 - `GET /api/player/stream/{jobId}`
 - `GET /api/player/{jobId}/tracks`
 - `GET /api/player/{jobId}/subtitles/{lang}`
 - `GET /api/subtitle/{jobId}`
 - `GET /api/subtitle/{jobId}/download/{fileName}`
+- `GET /api/health` (backend + queue availability status)
 
 ## MCP Server (GitHub-authenticated)
 

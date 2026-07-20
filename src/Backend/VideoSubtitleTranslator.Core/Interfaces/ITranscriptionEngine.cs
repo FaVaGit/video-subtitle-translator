@@ -4,9 +4,10 @@ namespace VideoSubtitleTranslator.Core.Interfaces;
 
 public interface ITranscriptionEngine
 {
-    Task<IReadOnlyList<Segment>> TranscribeAsync(
+    Task<TranscriptionResult> TranscribeAsync(
         string audioPath,
         string? sourceLanguage,
+        string modelSize,
         IProgress<int>? progress = null,
         CancellationToken ct = default);
 }

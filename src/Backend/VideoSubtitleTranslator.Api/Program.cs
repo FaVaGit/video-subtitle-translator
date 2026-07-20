@@ -4,11 +4,13 @@ using VideoSubtitleTranslator.Api.Endpoints;
 using VideoSubtitleTranslator.Core.Interfaces;
 using VideoSubtitleTranslator.Infrastructure.Audio;
 using VideoSubtitleTranslator.Infrastructure.Messaging;
+using VideoSubtitleTranslator.Infrastructure.Processing;
 using VideoSubtitleTranslator.Infrastructure.Progress;
 using VideoSubtitleTranslator.Infrastructure.Storage;
 using VideoSubtitleTranslator.Infrastructure.Subtitle;
 using VideoSubtitleTranslator.Infrastructure.Transcription;
 using VideoSubtitleTranslator.Infrastructure.Translation;
+using VideoSubtitleTranslator.Infrastructure.Video;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,9 +25,13 @@ builder.Services.AddSingleton<IJobPublisher, NatsJobPublisher>();
 builder.Services.AddSingleton<IProgressBroadcaster, SseProgressBroadcaster>();
 builder.Services.AddSingleton<IAudioExtractor, FFmpegAudioExtractor>();
 builder.Services.AddSingleton<ITranscriptionEngine>(_ =>
-    new OnnxWhisperEngine(builder.Configuration.GetValue<string>("Whisper:ModelPath") ?? "./models/whisper-medium"));
+    new WhisperNetTranscriptionEngine(
+        builder.Configuration.GetValue<string>("Whisper:ModelsDirectory") ?? "./models",
+        builder.Configuration.GetValue<string>("Whisper:ModelSize") ?? "medium"));
 builder.Services.AddSingleton<ISubtitleGenerator, SrtGenerator>();
+builder.Services.AddSingleton<IVideoBurner, FFmpegSubtitleBurner>();
 builder.Services.AddHttpClient<ITranslationService, GoogleTranslateService>();
+builder.Services.AddSingleton<VideoProcessingPipeline>();
 builder.Services.AddSingleton<QueueRuntimeState>();
 builder.Services.AddSingleton<DirectVideoProcessor>();
 
