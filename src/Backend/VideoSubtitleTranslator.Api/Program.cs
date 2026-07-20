@@ -34,6 +34,7 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+var queueAvailable = true;
 
 // Initialize NATS stream
 var publisher = (NatsJobPublisher)app.Services.GetRequiredService<IJobPublisher>();
@@ -43,8 +44,15 @@ try
 }
 catch (NatsException ex)
 {
+    queueAvailable = false;
     app.Logger.LogWarning(ex, "NATS is unavailable. API will start, but job submission is disabled until the broker is reachable.");
 }
+
+app.MapGet("/api/health", () => Results.Ok(new
+{
+    backend = "ok",
+    queue = queueAvailable ? "available" : "unavailable"
+}));
 
 if (app.Environment.IsDevelopment())
 {
