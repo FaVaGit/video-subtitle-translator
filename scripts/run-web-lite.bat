@@ -50,7 +50,7 @@ if defined PID5000 (
         echo         Frontend will still start, but API access may not be available.
     )
 ) else (
-    for /f %%P in ('powershell -NoProfile -Command "$process = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c title VST API ^&^& dotnet run --project VideoSubtitleTranslator.Api --no-build --urls \"http://localhost:5000\"' -WorkingDirectory '%ROOT%\src\Backend' -WindowStyle Minimized -PassThru; $process.Id"') do (
+    for /f %%P in ('powershell -NoProfile -Command "$process = Start-Process -FilePath 'dotnet' -ArgumentList 'run --project VideoSubtitleTranslator.Api --no-build --urls http://localhost:5000' -WorkingDirectory '%ROOT%\src\Backend' -WindowStyle Hidden -PassThru; $process.Id"') do (
         set "API_PID=%%P"
     )
     set "STARTED_API=1"
