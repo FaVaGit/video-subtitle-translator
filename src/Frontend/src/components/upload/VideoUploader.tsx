@@ -92,14 +92,6 @@ async function getUploadErrorMessage(error: unknown): Promise<string> {
       } catch {
         return 'Cannot reach backend API. Verify backend is running (Backend connected badge) and retry.';
       }
-
-    function isRetryableUploadError(error: unknown): boolean {
-      if (!axios.isAxiosError(error)) return false;
-      if (error.response) return false;
-
-      const code = error.code ?? '';
-      return code === 'ERR_NETWORK' || code === 'ECONNABORTED' || code === 'ECONNRESET';
-    }
     }
 
     const data = error.response?.data;
@@ -117,6 +109,14 @@ async function getUploadErrorMessage(error: unknown): Promise<string> {
   }
 
   return 'Upload failed. Verify backend status, then retry Start Processing.';
+}
+
+function isRetryableUploadError(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false;
+  if (error.response) return false;
+
+  const code = error.code ?? '';
+  return code === 'ERR_NETWORK' || code === 'ECONNABORTED' || code === 'ECONNRESET';
 }
 
 const MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'];
