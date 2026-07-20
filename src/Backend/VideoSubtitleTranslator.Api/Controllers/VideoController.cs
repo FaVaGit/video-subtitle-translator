@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using NATS.Client.Core;
+using VideoSubtitleTranslator.Api.Services;
 using VideoSubtitleTranslator.Core.Events;
 using VideoSubtitleTranslator.Core.Interfaces;
 using VideoSubtitleTranslator.Core.Models;
@@ -12,11 +13,19 @@ public class VideoController : ControllerBase
 {
     private readonly IFileStorage _storage;
     private readonly IJobPublisher _publisher;
+    private readonly DirectVideoProcessor _directProcessor;
+    private readonly QueueRuntimeState _queueState;
 
-    public VideoController(IFileStorage storage, IJobPublisher publisher)
+    public VideoController(
+        IFileStorage storage,
+        IJobPublisher publisher,
+        DirectVideoProcessor directProcessor,
+        QueueRuntimeState queueState)
     {
         _storage = storage;
         _publisher = publisher;
+        _directProcessor = directProcessor;
+        _queueState = queueState;
     }
 
     [HttpPost("upload")]
@@ -48,22 +57,37 @@ public class VideoController : ControllerBase
             BurnSubtitles = burnSubtitles
         };
 
+        var job = new JobCreatedEvent
+        {
+            JobId = jobId,
+            VideoPath = _storage.GetVideoPath(jobId),
+            Options = options
+        };
+
+        if (!_queueState.QueueAvailable)
+        {
+            _directProcessor.StartProcessingInBackground(job);
+            return Ok(new
+            {
+                jobId,
+                status = "processing-direct",
+                detail = "Queue unavailable: running direct processing in API mode."
+            });
+        }
+
         try
         {
-            await _publisher.PublishJobAsync(new JobCreatedEvent
-            {
-                JobId = jobId,
-                VideoPath = _storage.GetVideoPath(jobId),
-                Options = options
-            }, ct);
+            await _publisher.PublishJobAsync(job, ct);
         }
         catch (NatsException)
         {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            _queueState.QueueAvailable = false;
+            _directProcessor.StartProcessingInBackground(job);
+            return Ok(new
             {
-                error = "Job queue is unavailable.",
-                detail = "NATS is not reachable. Start the broker, then retry the upload.",
-                jobId
+                jobId,
+                status = "processing-direct",
+                detail = "Queue became unavailable: switched to direct processing in API mode."
             });
         }
 
