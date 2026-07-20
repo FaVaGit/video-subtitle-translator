@@ -12,6 +12,7 @@ import {
 } from '@fluentui/react-components';
 import { ArrowUploadRegular } from '@fluentui/react-icons';
 import { uploadVideo } from '../../api/videoApi';
+import { getHealthStatus } from '../../api/httpClient';
 import { useJobStore } from '../../store/jobStore';
 
 const useStyles = makeStyles({
@@ -82,8 +83,17 @@ const useStyles = makeStyles({
   },
 });
 
-function getUploadErrorMessage(error: unknown): string {
+async function getUploadErrorMessage(error: unknown): Promise<string> {
   if (axios.isAxiosError(error)) {
+    if (!error.response || error.code === 'ERR_NETWORK') {
+      try {
+        await getHealthStatus();
+        return 'Connection to upload endpoint failed. The backend is reachable, but the request was interrupted. Retry Start Processing.';
+      } catch {
+        return 'Cannot reach backend API. Verify backend is running (Backend connected badge) and retry.';
+      }
+    }
+
     const data = error.response?.data;
     if (data && typeof data === 'object') {
       const detail = (data as { detail?: unknown }).detail;
@@ -98,7 +108,7 @@ function getUploadErrorMessage(error: unknown): string {
     if (error.message) return error.message;
   }
 
-  return 'Upload failed. Verify that the backend and queue are available, then retry.';
+  return 'Upload failed. Verify backend status, then retry Start Processing.';
 }
 
 const MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'];
@@ -160,7 +170,7 @@ export function VideoUploader() {
       setJob(result.jobId, mode, initialStage);
       updateProgress('queued', 0, initialStage);
     } catch (error) {
-      setUploadError(getUploadErrorMessage(error));
+      setUploadError(await getUploadErrorMessage(error));
     } finally {
       setUploading(false);
     }
