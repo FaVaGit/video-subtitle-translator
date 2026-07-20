@@ -121,7 +121,8 @@ function isRetryableUploadError(error: unknown): boolean {
 
 const MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'];
 const SOURCES = [
-  'auto', 'en', 'it', 'fr', 'de', 'es', 'pt', 'ja', 'zh', 'ko', 'ru', 'ar', 'hi',
+  'auto', 'en', 'it', 'fr', 'de', 'es', 'pt', 'zh', 'ja', 'ko', 'ar', 'ru', 'hi',
+  'nl', 'pl', 'tr', 'sv', 'da', 'no', 'fi', 'el', 'ro', 'hu', 'cs', 'uk',
 ];
 const LANGS = [
   { code: 'en', name: 'English' },
@@ -130,11 +131,24 @@ const LANGS = [
   { code: 'de', name: 'Deutsch' },
   { code: 'es', name: 'Español' },
   { code: 'pt', name: 'Português' },
-  { code: 'ja', name: '日本語' },
   { code: 'zh', name: '中文' },
+  { code: 'ja', name: '日本語' },
   { code: 'ko', name: '한국어' },
-  { code: 'ru', name: 'Русский' },
   { code: 'ar', name: 'العربية' },
+  { code: 'ru', name: 'Русский' },
+  { code: 'hi', name: 'हिन्दी' },
+  { code: 'nl', name: 'Nederlands' },
+  { code: 'pl', name: 'Polski' },
+  { code: 'tr', name: 'Türkçe' },
+  { code: 'sv', name: 'Svenska' },
+  { code: 'da', name: 'Dansk' },
+  { code: 'no', name: 'Norsk' },
+  { code: 'fi', name: 'Suomi' },
+  { code: 'el', name: 'Ελληνικά' },
+  { code: 'ro', name: 'Română' },
+  { code: 'hu', name: 'Magyar' },
+  { code: 'cs', name: 'Čeština' },
+  { code: 'uk', name: 'Українська' },
 ];
 
 export function VideoUploader() {
