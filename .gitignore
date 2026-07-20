@@ -55,6 +55,7 @@ node_modules/
 
 # Tauri
 src/Desktop/src-tauri/target/
+src/Desktop/src-tauri/gen/
 
 # App data
 data/

@@ -4,13 +4,12 @@
   "version": "1.0.0",
   "identifier": "com.videosubtitletranslator.app",
   "build": {
-    "frontendDist": "../../Frontend/dist",
+    "frontendDist": "../Frontend/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ../../Frontend && npm run dev",
-    "beforeBuildCommand": "cd ../../Frontend && npm run build"
+    "beforeDevCommand": "npm --prefix ../Frontend run dev",
+    "beforeBuildCommand": "npm --prefix ../Frontend run build"
   },
   "app": {
-    "title": "Video Subtitle Translator",
     "windows": [
       {
         "title": "Video Subtitle Translator",

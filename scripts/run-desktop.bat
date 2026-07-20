@@ -5,6 +5,11 @@ title Video Subtitle Translator - Desktop Mode (Tauri)
 
 set "ROOT=%~dp0.."
 cd /d "%ROOT%"
+set "NATS_BIN="
+
+if exist "%USERPROFILE%\.cargo\bin" (
+    set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+)
 
 echo.
 echo   [DESKTOP] Starting Tauri desktop app...
@@ -40,10 +45,15 @@ if %errorlevel%==0 (
     echo         Already running
     goto :desk_nats_ok
 )
-where nats-server >nul 2>&1
-if %errorlevel%==0 (
+for /f "usebackq delims=" %%P in (`powershell -NoProfile -Command "$cmd = Get-Command nats-server -ErrorAction SilentlyContinue; if ($cmd) { $cmd.Source }"`) do (
+    if not defined NATS_BIN set "NATS_BIN=%%P"
+)
+if not defined NATS_BIN if exist "%ProgramFiles%\NATS\nats-server\nats-server.exe" set "NATS_BIN=%ProgramFiles%\NATS\nats-server\nats-server.exe"
+if not defined NATS_BIN if exist "%ProgramFiles(x86)%\NATS\nats-server\nats-server.exe" set "NATS_BIN=%ProgramFiles(x86)%\NATS\nats-server\nats-server.exe"
+
+if defined NATS_BIN (
     if not exist "%ROOT%\data\nats" mkdir "%ROOT%\data\nats"
-    start "NATS Server" /min nats-server --jetstream --store_dir "%ROOT%\data\nats"
+    start "NATS Server" /min "cmd" /c "\"%NATS_BIN%\" --jetstream --store_dir \"%ROOT%\data\nats\""
     set "NATS_STARTED=local"
     timeout /t 2 /nobreak >nul
     goto :desk_nats_ok
@@ -69,7 +79,39 @@ echo.
 :: ── Backend ──
 echo   [2/3] Building and starting backend...
 cd /d "%ROOT%\src\Backend"
+
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
+    if not defined API_PORT_PID set "API_PORT_PID=%%P"
+)
+if defined API_PORT_PID (
+    powershell -NoProfile -Command "try { Stop-Process -Id !API_PORT_PID! -Force -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
+for /f "tokens=*" %%I in ('powershell -NoProfile -Command "$targets = @('VideoSubtitleTranslator.Api','VideoSubtitleTranslator.Worker'); Get-CimInstance Win32_Process -Filter \"Name = 'dotnet.exe'\" ^| Where-Object { $cmd = $_.CommandLine; $cmd -and ($targets ^| Where-Object { $cmd -like ('*' + $_ + '*') }) } ^| ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }"') do rem
+
 dotnet build --nologo -q >nul 2>&1
+if errorlevel 1 (
+    echo         [WARN] First backend build attempt failed. Retrying after cleanup...
+    for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
+        if not defined API_PORT_PID_RETRY set "API_PORT_PID_RETRY=%%P"
+    )
+    if defined API_PORT_PID_RETRY (
+        powershell -NoProfile -Command "try { Stop-Process -Id !API_PORT_PID_RETRY! -Force -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
+        timeout /t 1 /nobreak >nul
+    )
+    dotnet build --nologo -q >nul 2>&1
+    if errorlevel 1 (
+        echo         [WARN] Retry build still failing. Running verbose build once...
+        dotnet build --nologo
+        if errorlevel 1 (
+            echo         [ERROR] Backend build failed.
+            pause
+            exit /b 1
+        )
+    )
+)
+
 start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
 start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000"
 echo         [OK]
