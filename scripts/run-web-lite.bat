@@ -36,6 +36,7 @@ echo.
 
 echo   [2/3] Starting API on :5000...
 set "API_READY=0"
+set "API_HEALTH=0"
 for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
     if not defined PID5000 set "PID5000=%%P"
 )
@@ -44,17 +45,33 @@ if defined PID5000 (
     powershell -NoProfile -Command "try { $null = Invoke-WebRequest -Uri 'http://localhost:5000/swagger' -UseBasicParsing -TimeoutSec 3; exit 0 } catch { exit 1 }" >nul 2>&1
     if !errorlevel!==0 set "API_READY=1"
     if "!API_READY!"=="1" (
+        powershell -NoProfile -Command "try { $null = Invoke-WebRequest -Uri 'http://localhost:5000/api/health' -UseBasicParsing -TimeoutSec 3; exit 0 } catch { exit 1 }" >nul 2>&1
+        if !errorlevel!==0 set "API_HEALTH=1"
+    )
+
+    if "!API_HEALTH!"=="1" (
         echo         Reusing existing API instance on http://localhost:5000.
+    ) else if "!API_READY!"=="1" (
+        echo         Existing API instance on :5000 is outdated ^(/api/health not found^). Restarting...
+        taskkill /PID !PID5000! /T /F >nul 2>&1
+        if !errorlevel!==0 (
+            set "PID5000="
+            echo         [OK] Outdated API stopped.
+        ) else (
+            echo         [WARN] Could not stop PID !PID5000!. Continue with current instance.
+        )
     ) else (
         echo         [WARN] Port 5000 is in use by another process ^(PID !PID5000!^).
         echo         Frontend will still start, but API access may not be available.
     )
-) else (
+)
+
+if not defined PID5000 (
     for /f %%P in ('powershell -NoProfile -Command "$process = Start-Process -FilePath 'dotnet' -ArgumentList 'run --project VideoSubtitleTranslator.Api --no-build --urls http://localhost:5000' -WorkingDirectory '%ROOT%\src\Backend' -WindowStyle Hidden -PassThru; $process.Id"') do (
         set "API_PID=%%P"
     )
     set "STARTED_API=1"
-    echo         [OK]
+    echo         [OK] API started in background.
 )
 echo.
 
