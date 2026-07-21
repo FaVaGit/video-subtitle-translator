@@ -21,7 +21,8 @@ builder.Services.AddSingleton<INatsConnection>(_ => new NatsConnection(new NatsO
 // Services
 builder.Services.AddSingleton<IFileStorage>(_ =>
     new LocalFileStorage(builder.Configuration.GetValue<string>("Storage:BasePath") ?? "./data"));
-builder.Services.AddSingleton<IJobPublisher, NatsJobPublisher>();
+builder.Services.AddSingleton<NatsJobPublisher>();
+builder.Services.AddSingleton<IJobPublisher>(sp => sp.GetRequiredService<NatsJobPublisher>());
 builder.Services.AddSingleton<IProgressBroadcaster, SseProgressBroadcaster>();
 builder.Services.AddSingleton<IAudioExtractor, FFmpegAudioExtractor>();
 builder.Services.AddSingleton<ITranscriptionEngine>(_ =>
@@ -33,7 +34,9 @@ builder.Services.AddSingleton<IVideoBurner, FFmpegSubtitleBurner>();
 builder.Services.AddHttpClient<ITranslationService, GoogleTranslateService>();
 builder.Services.AddSingleton<VideoProcessingPipeline>();
 builder.Services.AddSingleton<QueueRuntimeState>();
+builder.Services.AddSingleton<QueueInfrastructureBootstrapper>();
 builder.Services.AddSingleton<DirectVideoProcessor>();
+builder.Services.AddSingleton<JobProgressStateStore>();
 
 // API
 builder.Services.AddControllers();
@@ -45,7 +48,12 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:1420")
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:1420",
+                "http://tauri.localhost",
+                "https://tauri.localhost",
+                "tauri://localhost")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -70,7 +78,7 @@ catch (NatsException ex)
 app.MapGet("/api/health", () => Results.Ok(new
 {
     backend = "ok",
-    queue = queueState.QueueAvailable ? "available" : "unavailable"
+    queue = queueState.Status
 }));
 
 if (app.Environment.IsDevelopment())

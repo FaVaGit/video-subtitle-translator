@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using VideoSubtitleTranslator.Api.Services;
 using VideoSubtitleTranslator.Core.Events;
 using VideoSubtitleTranslator.Core.Interfaces;
 
@@ -6,8 +8,28 @@ namespace VideoSubtitleTranslator.Api.Endpoints;
 
 public static class ProgressEndpoint
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public static void MapProgressEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/jobs/{jobId}/latest-progress", (
+            string jobId,
+            JobProgressStateStore progressStateStore) =>
+        {
+            if (!progressStateStore.TryGetPath(jobId, out var progressFilePath) ||
+                string.IsNullOrWhiteSpace(progressFilePath) ||
+                !File.Exists(progressFilePath))
+            {
+                return Results.NotFound();
+            }
+
+            var json = File.ReadAllText(progressFilePath);
+            return Results.Content(json, "application/json");
+        });
+
         app.MapGet("/api/jobs/{jobId}/progress", async (
             string jobId,
             IProgressBroadcaster broadcaster,
@@ -20,7 +42,7 @@ public static class ProgressEndpoint
 
             await foreach (var evt in broadcaster.SubscribeAsync(jobId, ct))
             {
-                var json = System.Text.Json.JsonSerializer.Serialize(evt);
+                var json = JsonSerializer.Serialize(evt, JsonOptions);
                 await context.Response.WriteAsync($"data: {json}\n\n", ct);
                 await context.Response.Body.FlushAsync(ct);
             }

@@ -11,9 +11,45 @@ import {
   Text,
 } from '@fluentui/react-components';
 import { ArrowUploadRegular } from '@fluentui/react-icons';
-import { processLocalVideo, uploadVideo } from '../../api/videoApi';
+import { cancelJob, openOutputFolder, processLocalVideo, RequestedProcessingMode, uploadVideo } from '../../api/videoApi';
 import { getHealthStatus } from '../../api/httpClient';
 import { useJobStore } from '../../store/jobStore';
+
+function isTauriEnv(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+function basename(path: string): string {
+  const parts = path.split(/[\\/]/);
+  return parts[parts.length - 1] || path;
+}
+
+function normalizeLocalVideoPath(value: string): string {
+  let path = value.trim().replace(/^"|"$/g, '');
+  if (!path) return '';
+
+  if (path.startsWith('file://')) {
+    try {
+      const url = new URL(path);
+      if (url.protocol === 'file:') {
+        path = decodeURIComponent(url.pathname || '');
+      }
+    } catch {
+      // Keep original value if parsing fails.
+    }
+  }
+
+  // Convert /C:/foo (URI-style Windows path) to C:\foo.
+  if (/^\/[A-Za-z]:\//.test(path)) {
+    path = path.slice(1);
+  }
+
+  if (/^[A-Za-z]:\//.test(path)) {
+    path = path.replace(/\//g, '\\\\');
+  }
+
+  return path;
+}
 
 const useStyles = makeStyles({
   root: {
@@ -158,19 +194,30 @@ export function VideoUploader() {
   const [targetLangs, setTargetLangs] = useState<string[]>(['it', 'en']);
   const [modelSize, setModelSize] = useState('medium');
   const [burnSubs, setBurnSubs] = useState(false);
+  const [processingMode, setProcessingMode] = useState<RequestedProcessingMode>('auto');
   const [uploading, setUploading] = useState(false);
   const [uploadPercent, setUploadPercent] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [localPath, setLocalPath] = useState('');
+  const [nativeFileName, setNativeFileName] = useState('');
+  const [actionBusy, setActionBusy] = useState<'cancel' | 'open-folder' | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setJob = useJobStore((s) => s.setJob);
   const updateProgress = useJobStore((s) => s.updateProgress);
+  const activeJobId = useJobStore((s) => s.jobId);
+  const jobStatus = useJobStore((s) => s.status);
+  const currentProgress = useJobStore((s) => s.progress);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (selected) {
       setFile(selected);
+      setNativeFileName('');
       setUploadError('');
+      // Some non-standard webviews (e.g. Electron-like environments) expose a real
+      // filesystem path on the File object. When available, use it directly.
+      const maybePath = (selected as unknown as { path?: string }).path;
+      setLocalPath(maybePath ?? '');
     }
   }, []);
 
@@ -186,6 +233,7 @@ export function VideoUploader() {
         targetLanguages: targetLangs.join(','),
         modelSize,
         burnSubtitles: burnSubs,
+        processingMode,
       }, setUploadPercent);
 
       let result;
@@ -221,7 +269,7 @@ export function VideoUploader() {
   };
 
   const handleSubmitLocalPath = async () => {
-    const path = localPath.trim();
+    const path = normalizeLocalVideoPath(localPath);
     if (!path) return;
     if (targetLangs.length === 0) return;
 
@@ -233,6 +281,7 @@ export function VideoUploader() {
         targetLanguages: targetLangs.join(','),
         modelSize,
         burnSubtitles: burnSubs,
+        processingMode,
       });
 
       const mode = result.status === 'processing-direct' ? 'direct' : result.status === 'queued' ? 'queue' : 'unknown';
@@ -259,8 +308,62 @@ export function VideoUploader() {
     });
   };
 
-  const handlePickVideo = () => {
+  const handlePickVideo = async () => {
+    if (isTauriEnv()) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const path = await invoke<string | null>('open_file_dialog');
+        if (path) {
+          setFile(null);
+          setLocalPath(path);
+          setNativeFileName(basename(path));
+          setUploadError('');
+        }
+        return;
+      } catch {
+        // Native dialog unavailable: fall back to the browser file picker below.
+      }
+    }
     fileInputRef.current?.click();
+  };
+
+  const handleStart = () => {
+    if (localPath.trim()) return handleSubmitLocalPath();
+    if (file) return handleSubmit();
+  };
+
+  const isProcessing =
+    !!activeJobId &&
+    jobStatus !== 'idle' &&
+    jobStatus !== 'completed' &&
+    jobStatus !== 'failed';
+
+  const handleCancel = async () => {
+    if (!activeJobId || !isProcessing || actionBusy) return;
+
+    setActionBusy('cancel');
+    try {
+      const response = await cancelJob(activeJobId);
+      const detail = response.detail ?? 'Cancellation requested.';
+      updateProgress(jobStatus, currentProgress, detail);
+    } catch (error) {
+      setUploadError(await getUploadErrorMessage(error));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleOpenOutputFolder = async () => {
+    if (!activeJobId || actionBusy) return;
+
+    setActionBusy('open-folder');
+    try {
+      await openOutputFolder(activeJobId);
+    } catch (error) {
+      setUploadError(await getUploadErrorMessage(error));
+    } finally {
+      setActionBusy(null);
+    }
   };
 
   return (
@@ -269,14 +372,18 @@ export function VideoUploader() {
         <Text className={styles.sectionTitle}>Files</Text>
         <div className={styles.row}>
           <Label>Input video:</Label>
-          <Input value={file?.name ?? ''} readOnly placeholder="Select a video file..." />
+          <Input value={file?.name ?? nativeFileName} readOnly placeholder="Select a video file..." />
           <Button appearance="secondary" onClick={handlePickVideo}>Browse…</Button>
         </div>
         <div className={styles.rowNoButton}>
           <Label>Local path:</Label>
           <Input
             value={localPath}
-            onChange={(_, d) => setLocalPath(d.value)}
+            onChange={(_, d) => {
+              setLocalPath(d.value);
+              setFile(null);
+              setNativeFileName('');
+            }}
             placeholder="C:\\Videos\\myfile.mp4 (no upload, direct local processing)"
           />
         </div>
@@ -285,7 +392,7 @@ export function VideoUploader() {
           <Text block>Drag and drop a video file or click Browse</Text>
           <Text block className={styles.tiny}>Supported: mp4, mkv, avi, mov, webm</Text>
           <Text block className={styles.tiny}>Folders with only images or unsupported files can appear empty in the picker.</Text>
-          <Text block className={styles.tiny}>If you prefer no browser upload flow, use Local path + Start from local path.</Text>
+          <Text block className={styles.tiny}>Desktop app: Browse fills Local path automatically and output files (subtitles, burned video) are created next to the input file. Browser: files are uploaded and results stay in the app (Player tab).</Text>
           <input
             ref={fileInputRef}
             type="file"
@@ -315,12 +422,20 @@ export function VideoUploader() {
             ))}
           </Select>
         </div>
+        <div className={styles.rowNoButton}>
+          <Label>Processing mode:</Label>
+          <Select value={processingMode} onChange={(_, d) => setProcessingMode(d.value as RequestedProcessingMode)}>
+            <option value="auto">Auto</option>
+            <option value="direct">Direct</option>
+            <option value="queue">Queue</option>
+          </Select>
+        </div>
       </div>
 
       <div className={styles.section}>
-        <Text className={styles.sectionTitle}>Hardware (auto-detected)</Text>
-        <Text className={styles.hwStrong}>🟢 WEB - Browser frontend connected to API worker</Text>
-        <Text className={styles.tiny}>Backend processing uses API/Worker runtime and server-side resources</Text>
+        <Text className={styles.sectionTitle}>Execution</Text>
+        <Text className={styles.hwStrong}>Processing runs through the shared .NET pipeline</Text>
+        <Text className={styles.tiny}>Auto uses queue when available and falls back to direct API processing. Direct forces immediate API execution. Queue now tries to bootstrap local broker and worker infrastructure automatically, then falls back to a local in-process queue when external infrastructure is unavailable.</Text>
       </div>
 
       <div className={styles.section}>
@@ -344,22 +459,28 @@ export function VideoUploader() {
           onChange={(_, d) => setBurnSubs(!!d.checked)}
           label="Burn subtitles into video copy"
         />
+        <Text block className={styles.tiny}>
+          Auto uses queue when available and falls back to direct mode. Direct runs immediately in API mode. Queue tries to start local NATS and the worker automatically, then uses a local in-process queue fallback if external infrastructure cannot be started.
+        </Text>
       </div>
 
       <div className={styles.section}>
         <Text className={styles.sectionTitle}>Actions</Text>
         <div className={styles.actions}>
-          <Button appearance="primary" disabled={!file || uploading || targetLangs.length === 0} onClick={handleSubmit}>
-            {uploading ? `Uploading... ${uploadPercent}%` : '▶ Start Processing'}
+          <Button
+            appearance="primary"
+            disabled={(!file && !localPath.trim()) || uploading || targetLangs.length === 0}
+            onClick={handleStart}
+          >
+            {uploading
+              ? (localPath.trim() ? 'Starting...' : `Uploading... ${uploadPercent}%`)
+              : '▶ Start Processing'}
           </Button>
-          <Button appearance="secondary" disabled={!localPath.trim() || uploading || targetLangs.length === 0} onClick={handleSubmitLocalPath}>
-            {uploading ? 'Starting...' : '▶ Start from local path'}
+          <Button appearance="secondary" disabled={!isProcessing || !!actionBusy} onClick={handleCancel}>
+            {actionBusy === 'cancel' ? 'Stopping...' : '■ Cancel'}
           </Button>
-          <Button appearance="secondary" disabled>
-            ■ Cancel
-          </Button>
-          <Button appearance="secondary" disabled>
-            📂 Open output folder
+          <Button appearance="secondary" disabled={!activeJobId || !!actionBusy} onClick={handleOpenOutputFolder}>
+            {actionBusy === 'open-folder' ? 'Opening...' : '📂 Open output folder'}
           </Button>
         </div>
         {uploadError && <Text block className={styles.errorText}>{uploadError}</Text>}

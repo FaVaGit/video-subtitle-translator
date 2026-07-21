@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "identifier": "com.videosubtitletranslator.app",
   "build": {
-    "frontendDist": "../Frontend/dist",
+    "frontendDist": "../../Frontend/dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm --prefix ../Frontend run dev",
     "beforeBuildCommand": "npm --prefix ../Frontend run build"

@@ -4,6 +4,7 @@ mod commands;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::open_file_dialog,
             commands::get_app_version,

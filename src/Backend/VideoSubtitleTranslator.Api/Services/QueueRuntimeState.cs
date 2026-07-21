@@ -2,5 +2,11 @@ namespace VideoSubtitleTranslator.Api.Services;
 
 public class QueueRuntimeState
 {
-    public bool QueueAvailable { get; set; } = true;
+    public string Status { get; set; } = "available";
+
+    public bool QueueAvailable
+    {
+        get => Status == "available";
+        set => Status = value ? "available" : "unavailable";
+    }
 }

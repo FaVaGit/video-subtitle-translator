@@ -7,6 +7,7 @@ export type JobStatus =
   | 'extracting-audio'
   | 'transcribing'
   | 'translating'
+  | 'burning-subtitles'
   | 'generating-subtitles'
   | 'completed'
   | 'failed';

@@ -45,7 +45,7 @@ public class WhisperNetTranscriptionEngine : ITranscriptionEngine
             ? builder.WithLanguage(forcedLanguage)
             : builder.WithLanguageDetection();
 
-        using var processor = builder.Build();
+        await using var processor = builder.Build();
 
         await using var audioStream = File.OpenRead(audioPath);
         var totalDuration = GetWavDuration(audioPath);

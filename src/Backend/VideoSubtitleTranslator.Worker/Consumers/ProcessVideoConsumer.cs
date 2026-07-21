@@ -3,6 +3,7 @@ using VideoSubtitleTranslator.Core.Events;
 using VideoSubtitleTranslator.Core.Interfaces;
 using VideoSubtitleTranslator.Infrastructure.Messaging;
 using VideoSubtitleTranslator.Infrastructure.Processing;
+using VideoSubtitleTranslator.Infrastructure.Progress;
 
 namespace VideoSubtitleTranslator.Worker.Consumers;
 
@@ -33,27 +34,34 @@ public class ProcessVideoConsumer : BackgroundService
         {
             try
             {
-                Task ReportProgress(JobStatus status, int percent, string stage, CancellationToken ct) =>
-                    _publisher.PublishProgressAsync(new JobProgressEvent
+                Task ReportProgress(JobStatus status, int percent, string stage, CancellationToken ct)
+                {
+                    var progress = new JobProgressEvent
                     {
                         JobId = job.JobId,
                         Status = status,
                         ProgressPercent = percent,
                         Stage = stage
-                    }, ct);
+                    };
+
+                    JobProgressFiles.WriteLatest(job.ProgressFilePath, progress);
+                    return _publisher.PublishProgressAsync(progress, ct);
+                };
 
                 await _pipeline.RunAsync(job, ReportProgress, stoppingToken);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process job {JobId}", job.JobId);
-                await _publisher.PublishProgressAsync(new JobProgressEvent
+                var failedProgress = new JobProgressEvent
                 {
                     JobId = job.JobId,
                     Status = JobStatus.Failed,
                     Stage = ex.Message,
                     ProgressPercent = 0
-                }, stoppingToken);
+                };
+                JobProgressFiles.WriteLatest(job.ProgressFilePath, failedProgress);
+                await _publisher.PublishProgressAsync(failedProgress, stoppingToken);
             }
         }
     }

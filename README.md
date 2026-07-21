@@ -14,12 +14,20 @@ Legacy Python files (`main.py`, `cli.py`, `engine.py`) are still in the reposito
 
 - End-to-end API/frontend/desktop orchestration scripts are available under `scripts/`.
 - Desktop can run without Python using Tauri (`run-desktop.bat` / `run-desktop-release.bat`).
+- `start-app.bat` now defaults to the packaged desktop delivery when available; source-tree desktop mode is opt-in via `VST_SOURCE_MODE=1`.
 - Transcription uses [Whisper.net](https://github.com/sandrohanea/whisper.net) (whisper.cpp bindings): real, offline, cross-platform speech-to-text with automatic model download on first use.
 - Behavior matches the reference Python engine: the detected/source-language transcript is always saved, only target languages that differ from it are translated, and subtitles can optionally be burned into a copy of the video (only when at least one translation was produced, burning the last requested target language — same rule as the Python engine).
 - Both the Worker (queue mode) and the API's direct-processing fallback (used automatically when NATS is unavailable) run through the exact same processing pipeline, so behavior never diverges between the two modes.
+- Intermediate conversion files are written under a per-job `tmp` folder and deleted automatically at the end of processing.
 - Player tab is always accessible (Python-like UX); actual video/subtitle playback is available after a processed job is present.
 - Player can load a local video directly from the Player tab (without going through Transcribe first).
 - A local-path processing mode (`POST /api/video/process-local`) lets you start a job directly from an absolute file path on disk, without a browser multipart upload.
+- The UI exposes `Auto`, `Direct`, and `Queue` processing modes:
+    - `Auto`: use queue when available, otherwise fallback to direct API processing.
+    - `Direct`: force immediate API-side processing.
+    - `Queue`: tries to bootstrap queue infrastructure automatically (local NATS or Docker + worker) and, if unavailable, uses a local in-process queued fallback.
+- During active processing, the UI supports direct controls to request cancellation and to open the current job output folder.
+- The top-right status area now shows live job status, progress percent, processing mode, and event-stream state.
 
 ## Tests
 
@@ -68,18 +76,24 @@ Same mode set as Windows.
 
 To run desktop outside Python:
 
+- Default stable launcher:
+    - `start-app.bat`
 - Development desktop:
     - `scripts\run-desktop.bat`
 - Packaged desktop binary:
     - `scripts\run-desktop-release.bat`
 
+`start-app.bat` prefers the packaged desktop runtime and can still run in direct mode when NATS is unavailable.
 Both flows use .NET + Node + Rust and do not require Python.
 
 ## API Surface (Implemented)
 
 - `POST /api/video/upload`
 - `POST /api/video/process-local` (start a job from a local file path, no browser upload)
+- `POST /api/video/{jobId}/cancel` (request cancellation for jobs running in local API process)
+- `POST /api/video/{jobId}/open-output-folder` (open resolved output folder while job is running or after completion)
 - `GET /api/jobs/{jobId}/progress` (SSE)
+- `GET /api/jobs/{jobId}/latest-progress` (latest persisted snapshot fallback)
 - `GET /api/player/stream/{jobId}`
 - `GET /api/player/{jobId}/tracks`
 - `GET /api/player/{jobId}/subtitles/{lang}`

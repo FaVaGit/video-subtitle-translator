@@ -16,6 +16,11 @@ echo   [DESKTOP] Starting Tauri desktop app...
 echo   ═════════════════════════════════════════
 echo.
 
+if /I "%VST_TEST_MODE%"=="1" (
+    echo   [TEST MODE] Desktop source launcher selected.
+    exit /b 0
+)
+
 where node >nul 2>&1
 if %errorlevel% neq 0 (
     echo   [ERROR] Node.js not found. Install Node.js 22+.
@@ -40,6 +45,7 @@ if %errorlevel% neq 0 (
 :: ── NATS ──
 echo   [1/3] NATS server...
 set "NATS_STARTED=0"
+set "QUEUE_MODE=available"
 netstat -an 2>nul | findstr ":4222 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel%==0 (
     echo         Already running
@@ -68,9 +74,9 @@ if %errorlevel%==0 (
         goto :desk_nats_ok
     )
 )
-echo         [ERROR] No NATS available.
-pause
-exit /b 1
+set "QUEUE_MODE=direct"
+echo         [WARN] No NATS available. Desktop will start in direct processing mode.
+goto :desk_nats_ok
 
 :desk_nats_ok
 echo         [OK]
@@ -88,7 +94,12 @@ if defined API_PORT_PID (
     timeout /t 1 /nobreak >nul
 )
 
-for /f "tokens=*" %%I in ('powershell -NoProfile -Command "$targets = @('VideoSubtitleTranslator.Api','VideoSubtitleTranslator.Worker'); Get-CimInstance Win32_Process -Filter \"Name = 'dotnet.exe'\" ^| Where-Object { $cmd = $_.CommandLine; $cmd -and ($targets ^| Where-Object { $cmd -like ('*' + $_ + '*') }) } ^| ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }"') do rem
+:: Stop any previous VST API / VST Worker instances by their console window title
+:: (dotnet run inherits the title given by `start "Title" ...`), which is more
+:: reliable than matching on process command line.
+taskkill /FI "WINDOWTITLE eq VST API" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq VST Worker" /T /F >nul 2>&1
+timeout /t 1 /nobreak >nul
 
 dotnet build --nologo -q >nul 2>&1
 if errorlevel 1 (
@@ -112,7 +123,9 @@ if errorlevel 1 (
     )
 )
 
-start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
+if /I "%QUEUE_MODE%"=="available" (
+    start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
+)
 start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000"
 echo         [OK]
 echo.
@@ -121,8 +134,19 @@ echo.
 echo   [3/3] Starting Tauri...
 echo.
 echo         API       http://localhost:5000
+if /I "%QUEUE_MODE%"=="direct" echo         Queue     unavailable ^(direct API processing fallback^)
 echo         Desktop   Tauri window will open
 echo.
+
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5173 " ^| findstr "LISTENING"') do (
+    if not defined FRONTEND_PORT_PID set "FRONTEND_PORT_PID=%%P"
+)
+if defined FRONTEND_PORT_PID (
+    powershell -NoProfile -Command "try { Stop-Process -Id !FRONTEND_PORT_PID! -Force -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
+powershell -NoProfile -Command "Get-Process video-subtitle-translator -ErrorAction SilentlyContinue ^| ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch {} }" >nul 2>&1
 
 cd /d "%ROOT%\src\Frontend"
 if not exist "node_modules" npm install --silent >nul 2>&1
@@ -133,9 +157,8 @@ cargo tauri dev
 :: Cleanup
 echo.
 echo   Shutting down...
-taskkill /fi "WINDOWTITLE eq VST Worker" /f >nul 2>&1
-taskkill /fi "WINDOWTITLE eq VST API" /f >nul 2>&1
-if "%NATS_STARTED%"=="local" taskkill /fi "WINDOWTITLE eq NATS Server" /f >nul 2>&1
+powershell -NoProfile -Command "Get-Process dotnet -ErrorAction SilentlyContinue ^| Where-Object { $_.MainWindowTitle -in @('VST Worker','VST API') } ^| ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch {} }" >nul 2>&1
+if "%NATS_STARTED%"=="local" powershell -NoProfile -Command "Get-Process -ErrorAction SilentlyContinue ^| Where-Object { $_.MainWindowTitle -eq 'NATS Server' } ^| ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch {} }" >nul 2>&1
 if "%NATS_STARTED%"=="docker" docker stop vst-nats >nul 2>&1
 echo   All services stopped.
 

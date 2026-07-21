@@ -119,6 +119,16 @@ Linux/macOS:
 The launcher auto-detects tools and offers available modes (`dev`, `docker`, `desktop`, `desktop-release`, `api-only`, `frontend-only`).
 It also supports `mcp` for the local MCP server session.
 
+### Processing Modes and Runtime Behavior
+
+- `Auto`: uses external queue when available, otherwise falls back to direct API processing.
+- `Direct`: starts immediate in-process API execution.
+- `Queue`: attempts queue bootstrap (local `nats-server` or Docker `vst-nats`, then worker). If external queue cannot be started, the API accepts the job and runs a local in-process queued fallback.
+- The Progress view uses live SSE plus a latest-snapshot fallback endpoint to reduce UI desync when event streaming is interrupted.
+- While a job is running, the UI allows:
+  - cancellation request,
+  - opening the job output folder immediately.
+
 ### Development Setup
 
 #### Backend
@@ -218,7 +228,11 @@ Frontend-first authentication:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/video/upload` | Upload video and start processing |
+| POST | `/api/video/process-local` | Start a job from a local absolute path without multipart upload |
+| POST | `/api/video/{id}/cancel` | Request cancellation for jobs running in local API process |
+| POST | `/api/video/{id}/open-output-folder` | Open the resolved output folder on host OS |
 | GET | `/api/jobs/{id}/progress` | SSE stream of job progress |
+| GET | `/api/jobs/{id}/latest-progress` | Latest persisted progress snapshot fallback |
 | GET | `/api/player/stream/{id}` | Stream video (range support) |
 | GET | `/api/player/{id}/tracks` | List subtitle tracks |
 | GET | `/api/player/{id}/subtitles/{lang}` | Get subtitle cues (JSON/SRT/VTT) |

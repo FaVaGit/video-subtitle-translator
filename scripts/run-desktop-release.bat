@@ -11,6 +11,11 @@ echo   [DESKTOP-RELEASE] Building and launching packaged app...
 echo   ═══════════════════════════════════════════════════════════
 echo.
 
+if /I "%VST_TEST_MODE%"=="1" (
+    echo   [TEST MODE] Desktop release launcher selected.
+    exit /b 0
+)
+
 where node >nul 2>&1
 if %errorlevel% neq 0 (
     echo   [ERROR] Node.js not found. Install Node.js 22+.

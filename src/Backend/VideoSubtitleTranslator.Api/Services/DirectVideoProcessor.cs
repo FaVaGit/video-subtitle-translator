@@ -1,7 +1,9 @@
 using VideoSubtitleTranslator.Core.Enums;
 using VideoSubtitleTranslator.Core.Events;
 using VideoSubtitleTranslator.Core.Interfaces;
+using VideoSubtitleTranslator.Infrastructure.Progress;
 using VideoSubtitleTranslator.Infrastructure.Processing;
+using System.Collections.Concurrent;
 
 namespace VideoSubtitleTranslator.Api.Services;
 
@@ -15,6 +17,7 @@ public class DirectVideoProcessor
     private readonly VideoProcessingPipeline _pipeline;
     private readonly IProgressBroadcaster _broadcaster;
     private readonly ILogger<DirectVideoProcessor> _logger;
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _jobCancellations = new(StringComparer.OrdinalIgnoreCase);
 
     public DirectVideoProcessor(
         VideoProcessingPipeline pipeline,
@@ -28,36 +31,80 @@ public class DirectVideoProcessor
 
     public void StartProcessingInBackground(JobCreatedEvent job)
     {
-        _ = Task.Run(() => ProcessJobAsync(job, CancellationToken.None));
+        StartBackgroundJob(job, "Queued (direct processing mode)...");
     }
 
-    private async Task ProcessJobAsync(JobCreatedEvent job, CancellationToken ct)
+    public void StartQueuedFallbackInBackground(JobCreatedEvent job)
+    {
+        StartBackgroundJob(job, "Queued in local in-process fallback mode...");
+    }
+
+    public bool TryCancel(string jobId)
+    {
+        if (_jobCancellations.TryGetValue(jobId, out var cts))
+        {
+            cts.Cancel();
+            return true;
+        }
+
+        return false;
+    }
+
+    private void StartBackgroundJob(JobCreatedEvent job, string initialStage)
+    {
+        var cts = new CancellationTokenSource();
+        if (!_jobCancellations.TryAdd(job.JobId, cts))
+        {
+            _logger.LogWarning("Job {JobId} is already running in direct processor.", job.JobId);
+            cts.Dispose();
+            return;
+        }
+
+        _ = Task.Run(() => ProcessJobAsync(job, initialStage, cts.Token));
+    }
+
+    private async Task ProcessJobAsync(JobCreatedEvent job, string initialStage, CancellationToken ct)
     {
         try
         {
-            await ReportProgress(job.JobId, JobStatus.Queued, 0, "Queued (direct processing mode)...", ct);
+            await ReportProgress(job.JobId, job.ProgressFilePath, JobStatus.Queued, 0, initialStage, ct);
 
             Task ReportPipelineProgress(JobStatus status, int percent, string stage, CancellationToken cancellationToken) =>
-                ReportProgress(job.JobId, status, percent, stage, cancellationToken);
+                ReportProgress(job.JobId, job.ProgressFilePath, status, percent, stage, cancellationToken);
 
             await _pipeline.RunAsync(job, ReportPipelineProgress, ct);
             _logger.LogInformation("Direct processing completed for job {JobId}", job.JobId);
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Direct processing cancelled for job {JobId}", job.JobId);
+            await ReportProgress(job.JobId, job.ProgressFilePath, JobStatus.Failed, 0, "Processing cancelled by user.", CancellationToken.None);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Direct processing failed for job {JobId}", job.JobId);
-            await ReportProgress(job.JobId, JobStatus.Failed, 0, ex.Message, ct);
+            await ReportProgress(job.JobId, job.ProgressFilePath, JobStatus.Failed, 0, ex.Message, CancellationToken.None);
+        }
+        finally
+        {
+            if (_jobCancellations.TryRemove(job.JobId, out var cts))
+            {
+                cts.Dispose();
+            }
         }
     }
 
-    private Task ReportProgress(string jobId, JobStatus status, int percent, string stage, CancellationToken ct)
+    private Task ReportProgress(string jobId, string? progressFilePath, JobStatus status, int percent, string stage, CancellationToken ct)
     {
-        return _broadcaster.BroadcastAsync(new JobProgressEvent
+        var progress = new JobProgressEvent
         {
             JobId = jobId,
             Status = status,
             ProgressPercent = percent,
             Stage = stage
-        }, ct);
+        };
+
+        JobProgressFiles.WriteLatest(progressFilePath, progress);
+        return _broadcaster.BroadcastAsync(progress, ct);
     }
 }

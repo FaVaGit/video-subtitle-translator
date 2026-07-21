@@ -1,0 +1,4 @@
+/// <reference types="vite/client" />
+
+declare const __APP_BUILD_STAMP__: string;
+declare const __APP_UI_VERSION__: string;

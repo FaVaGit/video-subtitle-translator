@@ -11,6 +11,7 @@
   "dependencies": {
     "@fluentui/react-components": "^9.54.0",
     "@fluentui/react-icons": "^2.0.245",
+    "@tauri-apps/api": "^2.0.0",
     "axios": "^1.7.0",
     "fabric": "^6.0.0",
     "react": "^19.0.0",

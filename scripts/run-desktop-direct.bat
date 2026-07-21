@@ -12,6 +12,11 @@ echo   [DESKTOP-DIRECT] Starting packaged app without build...
 echo   ═══════════════════════════════════════════════════════
 echo.
 
+if /I "%VST_TEST_MODE%"=="1" (
+    echo   [TEST MODE] Packaged desktop launcher selected.
+    exit /b 0
+)
+
 if not exist "%APP_EXE%" (
     echo   [ERROR] Packaged executable not found:
     echo           %APP_EXE%
@@ -31,6 +36,7 @@ if %errorlevel% neq 0 (
 :: ── NATS ──
 echo   [1/3] NATS server...
 set "NATS_STARTED=0"
+set "QUEUE_MODE=available"
 netstat -an 2>nul | findstr ":4222 " | findstr "LISTENING" >nul 2>&1
 if %errorlevel%==0 (
     echo         Already running
@@ -54,9 +60,9 @@ if %errorlevel%==0 (
         goto :nats_ok
     )
 )
-echo         [ERROR] No NATS available.
-pause
-exit /b 1
+set "QUEUE_MODE=direct"
+echo         [WARN] No NATS available. Desktop will start in direct processing mode.
+goto :nats_ok
 
 :nats_ok
 echo         [OK]
@@ -65,8 +71,20 @@ echo.
 :: ── Backend ──
 echo   [2/3] Starting backend...
 cd /d "%ROOT%\src\Backend"
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5000 " ^| findstr "LISTENING"') do (
+    if not defined API_PORT_PID set "API_PORT_PID=%%P"
+)
+if defined API_PORT_PID (
+    powershell -NoProfile -Command "try { Stop-Process -Id !API_PORT_PID! -Force -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+taskkill /FI "WINDOWTITLE eq VST Worker" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq VST API" /T /F >nul 2>&1
+timeout /t 1 /nobreak >nul
 dotnet build --nologo -q >nul 2>&1
-start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
+if /I "%QUEUE_MODE%"=="available" (
+    start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
+)
 start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000"
 echo         [OK]
 echo.
@@ -74,8 +92,11 @@ echo.
 :: ── Launch packaged binary ──
 echo   [3/3] Launching desktop app...
 echo         API       http://localhost:5000
+if /I "%QUEUE_MODE%"=="direct" echo         Queue     unavailable ^(direct API processing fallback^)
 echo         Desktop   %APP_EXE%
 echo.
+powershell -NoProfile -Command "Get-Process video-subtitle-translator -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch {} }" >nul 2>&1
+timeout /t 1 /nobreak >nul
 "%APP_EXE%"
 
 :: Cleanup
