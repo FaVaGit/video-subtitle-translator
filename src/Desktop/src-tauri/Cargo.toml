@@ -1,6 +1,6 @@
 [package]
 name = "video-subtitle-translator"
-version = "1.0.3"
+version = "1.0.4"
 description = "Video Subtitle Translator Desktop App"
 authors = ["Video Subtitle Translator Team"]
 edition = "2021"

@@ -276,13 +276,39 @@ export function VideoUploader() {
     setUploading(true);
     setUploadError('');
     try {
-      const result = await processLocalVideo(path, {
+      const submitLocal = async (overwriteOriginalSubtitle: boolean) => processLocalVideo(path, {
         sourceLanguage: sourceLanguage === 'auto' ? undefined : sourceLanguage,
         targetLanguages: targetLangs.join(','),
         modelSize,
         burnSubtitles: burnSubs,
         processingMode,
+        overwriteOriginalSubtitle,
       });
+
+      let result;
+      try {
+        result = await submitLocal(false);
+      } catch (firstError) {
+        if (axios.isAxiosError(firstError) && firstError.response?.status === 409) {
+          const data = firstError.response.data as { code?: unknown; detail?: unknown } | undefined;
+          if (data?.code === 'all_translations_exist') {
+            const detail = typeof data.detail === 'string'
+              ? data.detail
+              : 'All translated subtitle files already exist.';
+            const overwrite = window.confirm(`${detail}\n\nDo you want to overwrite the original subtitle and regenerate outputs?`);
+            if (!overwrite) {
+              setUploadError('Operation cancelled: existing translated subtitle files were kept.');
+              return;
+            }
+
+            result = await submitLocal(true);
+          } else {
+            throw firstError;
+          }
+        } else {
+          throw firstError;
+        }
+      }
 
       const mode = result.status === 'processing-direct' ? 'direct' : result.status === 'queued' ? 'queue' : 'unknown';
       const initialStage = result.detail ??

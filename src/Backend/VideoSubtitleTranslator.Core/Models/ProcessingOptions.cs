@@ -9,4 +9,5 @@ public class ProcessingOptions
     public string? SourceLanguage { get; set; }
     public List<string> TargetLanguages { get; set; } = ["en"];
     public bool BurnSubtitles { get; set; }
+    public bool OverwriteOriginalSubtitle { get; set; }
 }

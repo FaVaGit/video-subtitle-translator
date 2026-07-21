@@ -56,10 +56,10 @@ public class VideoProcessingPipelineTests
 
             var outputDir = storage.GetOutputDirectory(job.JobId);
 
-            Assert.True(File.Exists(Path.Combine(outputDir, "subtitles.en.srt")));
-            Assert.True(File.Exists(Path.Combine(outputDir, "subtitles.en.vtt")));
-            Assert.True(File.Exists(Path.Combine(outputDir, "subtitles.it.srt")));
-            Assert.True(File.Exists(Path.Combine(outputDir, "subtitles.fr.srt")));
+            Assert.True(File.Exists(Path.Combine(outputDir, "sample.en.srt")));
+            Assert.True(File.Exists(Path.Combine(outputDir, "sample.en.vtt")));
+            Assert.True(File.Exists(Path.Combine(outputDir, "sample.it.srt")));
+            Assert.True(File.Exists(Path.Combine(outputDir, "sample.fr.srt")));
 
             // Only languages different from the detected one are translated.
             Assert.Equal(new[] { "it", "fr" }, translation.RequestedLanguages);
@@ -110,7 +110,7 @@ public class VideoProcessingPipelineTests
             await pipeline.RunAsync(job, (_, _, _, _) => Task.CompletedTask);
 
             Assert.Single(burner.Calls);
-            Assert.EndsWith("subtitles.it.srt", burner.Calls[0].SubtitlePath);
+            Assert.EndsWith("sample.it.srt", burner.Calls[0].SubtitlePath);
         }
         finally
         {

@@ -45,6 +45,7 @@ public class VideoController : ControllerBase
         public string ModelSize { get; set; } = "medium";
         public bool BurnSubtitles { get; set; }
         public string ProcessingMode { get; set; } = "auto";
+        public bool OverwriteOriginalSubtitle { get; set; }
     }
 
     private static string NormalizeProcessingMode(string? value)
@@ -206,8 +207,28 @@ public class VideoController : ControllerBase
         if (targetLanguages.Count == 0)
             targetLanguages.Add("en");
 
-        var jobId = Guid.NewGuid().ToString("N");
         var outputDirectory = Path.GetFullPath(Path.GetDirectoryName(path)!);
+        if (!request.OverwriteOriginalSubtitle &&
+            TryFindExistingOriginalLanguage(outputDirectory, path, request.SourceLanguage, out var existingOriginalLanguage))
+        {
+            var languagesToTranslate = SubtitleLanguagePlanner.GetLanguagesToTranslate(existingOriginalLanguage, targetLanguages);
+            var allTranslatedExist = languagesToTranslate.Count == 0 ||
+                                     languagesToTranslate.All(lang => HasSubtitleForLanguage(outputDirectory, path, lang));
+
+            if (allTranslatedExist)
+            {
+                return Conflict(new
+                {
+                    code = "all_translations_exist",
+                    error = "All translated subtitle files already exist.",
+                    detail = $"Original subtitle language '{existingOriginalLanguage}' found and all requested translations are already present. Confirm overwrite to regenerate the original subtitle from audio and rewrite outputs.",
+                    originalLanguage = existingOriginalLanguage,
+                    outputDirectory
+                });
+            }
+        }
+
+        var jobId = Guid.NewGuid().ToString("N");
         var progressFilePath = Path.Combine(outputDirectory, "tmp", jobId, ".vst-progress.json");
         _progressStateStore.Track(jobId, progressFilePath, outputDirectory);
         var options = new ProcessingOptions
@@ -215,7 +236,8 @@ public class VideoController : ControllerBase
             SourceLanguage = request.SourceLanguage,
             TargetLanguages = targetLanguages,
             ModelSize = request.ModelSize,
-            BurnSubtitles = request.BurnSubtitles
+            BurnSubtitles = request.BurnSubtitles,
+            OverwriteOriginalSubtitle = request.OverwriteOriginalSubtitle
         };
 
         var job = new JobCreatedEvent
@@ -408,5 +430,80 @@ public class VideoController : ControllerBase
             Arguments = outputDirectory,
             UseShellExecute = false
         });
+    }
+
+    private static bool TryFindExistingOriginalLanguage(string outputDirectory, string videoPath, string? sourceLanguage, out string language)
+    {
+        language = string.Empty;
+        if (!Directory.Exists(outputDirectory))
+            return false;
+
+        var subtitleBaseName = Path.GetFileNameWithoutExtension(videoPath);
+        var normalizedSourceLanguage = NormalizeLanguage(sourceLanguage);
+
+        if (!string.IsNullOrWhiteSpace(normalizedSourceLanguage) &&
+            HasSubtitleForLanguage(outputDirectory, videoPath, normalizedSourceLanguage))
+        {
+            language = normalizedSourceLanguage;
+            return true;
+        }
+
+        if (HasSubtitleForLanguage(outputDirectory, videoPath, "en"))
+        {
+            language = "en";
+            return true;
+        }
+
+        foreach (var filePath in Directory.GetFiles(outputDirectory, "*.srt"))
+        {
+            if (TryExtractLanguageFromSubtitleFileName(Path.GetFileName(filePath), subtitleBaseName, out var detected))
+            {
+                language = detected;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasSubtitleForLanguage(string outputDirectory, string videoPath, string language)
+    {
+        var subtitleBaseName = Path.GetFileNameWithoutExtension(videoPath);
+        var candidates = new[]
+        {
+            Path.Combine(outputDirectory, $"{subtitleBaseName}.{language}.srt"),
+            Path.Combine(outputDirectory, $"{subtitleBaseName}.{language}.vtt"),
+            Path.Combine(outputDirectory, $"subtitles.{language}.srt"),
+            Path.Combine(outputDirectory, $"subtitles.{language}.vtt"),
+        };
+
+        return candidates.Any(System.IO.File.Exists);
+    }
+
+    private static string NormalizeLanguage(string? language)
+    {
+        var normalized = (language ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized is "" or "auto" ? string.Empty : normalized;
+    }
+
+    private static bool TryExtractLanguageFromSubtitleFileName(string fileName, string subtitleBaseName, out string language)
+    {
+        language = string.Empty;
+        if (!fileName.EndsWith(".srt", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (fileName.StartsWith($"{subtitleBaseName}.", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("subtitles.", StringComparison.OrdinalIgnoreCase))
+        {
+            var core = fileName[..^4];
+            var parts = core.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                language = parts[^1].ToLowerInvariant();
+                return true;
+            }
+        }
+
+        return false;
     }
 }

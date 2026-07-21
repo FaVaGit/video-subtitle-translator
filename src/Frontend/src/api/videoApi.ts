@@ -65,6 +65,7 @@ export async function processLocalVideo(
     modelSize: string;
     burnSubtitles: boolean;
     processingMode: RequestedProcessingMode;
+    overwriteOriginalSubtitle?: boolean;
   }
 ): Promise<UploadResponse> {
   const response = await httpClient.post<UploadResponse>('/video/process-local', {
@@ -74,6 +75,7 @@ export async function processLocalVideo(
     modelSize: options.modelSize,
     burnSubtitles: options.burnSubtitles,
     processingMode: options.processingMode,
+    overwriteOriginalSubtitle: !!options.overwriteOriginalSubtitle,
   });
   return response.data;
 }
