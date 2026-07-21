@@ -240,8 +240,6 @@ public class VideoProcessingPipeline
 
         var selected = candidates.FirstOrDefault(x =>
             string.Equals(x.Language, normalizedPreferredLanguage, StringComparison.OrdinalIgnoreCase));
-
-        selected ??= candidates.FirstOrDefault(x => string.Equals(x.Language, "en", StringComparison.OrdinalIgnoreCase));
         selected ??= candidates.First();
 
         var parsed = ParseSrtSegments(selected.Path);

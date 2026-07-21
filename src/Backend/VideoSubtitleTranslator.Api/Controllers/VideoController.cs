@@ -448,13 +448,7 @@ public class VideoController : ControllerBase
             return true;
         }
 
-        if (HasSubtitleForLanguage(outputDirectory, videoPath, "en"))
-        {
-            language = "en";
-            return true;
-        }
-
-        foreach (var filePath in Directory.GetFiles(outputDirectory, "*.srt"))
+        foreach (var filePath in Directory.GetFiles(outputDirectory, "*.*"))
         {
             if (TryExtractLanguageFromSubtitleFileName(Path.GetFileName(filePath), subtitleBaseName, out var detected))
             {
@@ -469,15 +463,20 @@ public class VideoController : ControllerBase
     private static bool HasSubtitleForLanguage(string outputDirectory, string videoPath, string language)
     {
         var subtitleBaseName = Path.GetFileNameWithoutExtension(videoPath);
-        var candidates = new[]
-        {
-            Path.Combine(outputDirectory, $"{subtitleBaseName}.{language}.srt"),
-            Path.Combine(outputDirectory, $"{subtitleBaseName}.{language}.vtt"),
-            Path.Combine(outputDirectory, $"subtitles.{language}.srt"),
-            Path.Combine(outputDirectory, $"subtitles.{language}.vtt"),
-        };
+        var normalizedLanguage = NormalizeLanguage(language);
+        if (string.IsNullOrWhiteSpace(normalizedLanguage) || !Directory.Exists(outputDirectory))
+            return false;
 
-        return candidates.Any(System.IO.File.Exists);
+        foreach (var filePath in Directory.GetFiles(outputDirectory, "*.*"))
+        {
+            if (TryExtractLanguageFromSubtitleFileName(Path.GetFileName(filePath), subtitleBaseName, out var detected) &&
+                string.Equals(detected, normalizedLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string NormalizeLanguage(string? language)
@@ -489,13 +488,15 @@ public class VideoController : ControllerBase
     private static bool TryExtractLanguageFromSubtitleFileName(string fileName, string subtitleBaseName, out string language)
     {
         language = string.Empty;
-        if (!fileName.EndsWith(".srt", StringComparison.OrdinalIgnoreCase))
+        var extension = Path.GetExtension(fileName);
+        if (!extension.Equals(".srt", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".vtt", StringComparison.OrdinalIgnoreCase))
             return false;
 
         if (fileName.StartsWith($"{subtitleBaseName}.", StringComparison.OrdinalIgnoreCase) ||
             fileName.StartsWith("subtitles.", StringComparison.OrdinalIgnoreCase))
         {
-            var core = fileName[..^4];
+            var core = fileName[..^extension.Length];
             var parts = core.Split('.', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 2)
             {
