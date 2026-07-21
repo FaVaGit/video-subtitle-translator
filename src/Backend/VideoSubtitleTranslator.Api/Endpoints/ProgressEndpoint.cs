@@ -3,6 +3,7 @@ using System.Text.Json;
 using VideoSubtitleTranslator.Api.Services;
 using VideoSubtitleTranslator.Core.Events;
 using VideoSubtitleTranslator.Core.Interfaces;
+using VideoSubtitleTranslator.Infrastructure.Progress;
 
 namespace VideoSubtitleTranslator.Api.Endpoints;
 
@@ -20,13 +21,11 @@ public static class ProgressEndpoint
             JobProgressStateStore progressStateStore) =>
         {
             if (!progressStateStore.TryGetPath(jobId, out var progressFilePath) ||
-                string.IsNullOrWhiteSpace(progressFilePath) ||
-                !File.Exists(progressFilePath))
+                !JobProgressFiles.TryReadLatest(progressFilePath, out var json))
             {
                 return Results.NotFound();
             }
 
-            var json = File.ReadAllText(progressFilePath);
             return Results.Content(json, "application/json");
         });
 

@@ -78,12 +78,12 @@ public class DirectVideoProcessor
         catch (OperationCanceledException)
         {
             _logger.LogInformation("Direct processing cancelled for job {JobId}", job.JobId);
-            await ReportProgress(job.JobId, job.ProgressFilePath, JobStatus.Failed, 0, "Processing cancelled by user.", CancellationToken.None);
+            await ReportProgress(job.JobId, null, JobStatus.Failed, 0, "Processing cancelled by user.", CancellationToken.None);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Direct processing failed for job {JobId}", job.JobId);
-            await ReportProgress(job.JobId, job.ProgressFilePath, JobStatus.Failed, 0, ex.Message, CancellationToken.None);
+            await ReportProgress(job.JobId, null, JobStatus.Failed, 0, ex.Message, CancellationToken.None);
         }
         finally
         {

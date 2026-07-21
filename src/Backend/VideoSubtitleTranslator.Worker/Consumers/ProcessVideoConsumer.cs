@@ -60,7 +60,6 @@ public class ProcessVideoConsumer : BackgroundService
                     Stage = ex.Message,
                     ProgressPercent = 0
                 };
-                JobProgressFiles.WriteLatest(job.ProgressFilePath, failedProgress);
                 await _publisher.PublishProgressAsync(failedProgress, stoppingToken);
             }
         }
