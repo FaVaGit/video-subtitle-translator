@@ -28,6 +28,7 @@ Legacy Python files (`main.py`, `cli.py`, `engine.py`) are still in the reposito
     - `Queue`: tries to bootstrap queue infrastructure automatically (local NATS or Docker + worker) and, if unavailable, uses a local in-process queued fallback.
 - During active processing, the UI supports direct controls to request cancellation and to open the current job output folder.
 - The top-right status area now shows live job status, progress percent, processing mode, and event-stream state.
+- Translation diagnostics are now explicit in backend logs (HTTP status, response preview, retries, and per-segment fallback counts) to troubleshoot upstream provider instability.
 
 ## Tests
 
