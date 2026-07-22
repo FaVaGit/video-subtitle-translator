@@ -85,7 +85,8 @@ public class VideoController : ControllerBase
         };
 
         var outputDirectory = Path.GetFullPath(_storage.GetOutputDirectory(jobId));
-        var progressFilePath = Path.Combine(outputDirectory, "tmp", jobId, ".vst-progress.json");
+        var appWorkingDirectory = Path.GetFullPath(_storage.GetOutputDirectory(jobId));
+        var progressFilePath = Path.Combine(appWorkingDirectory, "tmp", jobId, ".vst-progress.json");
         _progressStateStore.Track(jobId, progressFilePath, outputDirectory);
 
         var job = new JobCreatedEvent
@@ -229,7 +230,8 @@ public class VideoController : ControllerBase
         }
 
         var jobId = Guid.NewGuid().ToString("N");
-        var progressFilePath = Path.Combine(outputDirectory, "tmp", jobId, ".vst-progress.json");
+        var appWorkingDirectory = Path.GetFullPath(_storage.GetOutputDirectory(jobId));
+        var progressFilePath = Path.Combine(appWorkingDirectory, "tmp", jobId, ".vst-progress.json");
         _progressStateStore.Track(jobId, progressFilePath, outputDirectory);
         var options = new ProcessingOptions
         {

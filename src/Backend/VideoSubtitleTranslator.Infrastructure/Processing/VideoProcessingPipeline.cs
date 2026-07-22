@@ -47,7 +47,7 @@ public class VideoProcessingPipeline
             ? _storage.GetOutputDirectory(job.JobId)
             : job.OutputDirectory;
         Directory.CreateDirectory(outputDir);
-        var tmpDir = Path.Combine(outputDir, "tmp", job.JobId);
+        var tmpDir = ResolveWorkingTempDirectory(job);
         Directory.CreateDirectory(tmpDir);
         var subtitleBaseName = Path.GetFileNameWithoutExtension(job.VideoPath);
         string? audioPath = null;
@@ -364,5 +364,20 @@ public class VideoProcessingPipeline
 
         seconds = hours * 3600d + minutes * 60d + secs;
         return true;
+    }
+
+    private string ResolveWorkingTempDirectory(JobCreatedEvent job)
+    {
+        if (!string.IsNullOrWhiteSpace(job.ProgressFilePath))
+        {
+            var progressDir = Path.GetDirectoryName(Path.GetFullPath(job.ProgressFilePath));
+            if (!string.IsNullOrWhiteSpace(progressDir))
+            {
+                return progressDir;
+            }
+        }
+
+        // Fallback: still keep temp files in the app storage area.
+        return Path.Combine(_storage.GetOutputDirectory(job.JobId), "tmp", job.JobId);
     }
 }
