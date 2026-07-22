@@ -82,8 +82,9 @@ echo.
 echo   [2/4] Starting backend...
 cd /d "%ROOT%\src\Backend"
 dotnet build --nologo -q >nul 2>&1
-start "VST Worker" /min dotnet run --project VideoSubtitleTranslator.Worker --no-build
-start "VST API" /min dotnet run --project VideoSubtitleTranslator.Api --no-build --urls "http://localhost:5000"
+powershell -NoProfile -Command "$targets = @('VideoSubtitleTranslator.Api','VideoSubtitleTranslator.Worker'); Get-CimInstance Win32_Process -Filter \"Name = 'dotnet.exe'\" | Where-Object { $cmd = $_.CommandLine; $cmd -and ($targets | Where-Object { $cmd -like ('*' + $_ + '*') }) } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }" >nul 2>&1
+powershell -NoProfile -Command "Start-Process -FilePath 'dotnet' -ArgumentList @('run','--project','VideoSubtitleTranslator.Worker','--no-build') -WorkingDirectory '%ROOT%\src\Backend' -WindowStyle Hidden" >nul 2>&1
+powershell -NoProfile -Command "Start-Process -FilePath 'dotnet' -ArgumentList @('run','--project','VideoSubtitleTranslator.Api','--no-build','--urls','http://localhost:5000') -WorkingDirectory '%ROOT%\src\Backend' -WindowStyle Hidden" >nul 2>&1
 echo         [OK]
 echo.
 
@@ -115,8 +116,7 @@ echo.
 :cleanup
 echo.
 echo   Shutting down...
-taskkill /fi "WINDOWTITLE eq VST Worker" /f >nul 2>&1
-taskkill /fi "WINDOWTITLE eq VST API" /f >nul 2>&1
+powershell -NoProfile -Command "$targets = @('VideoSubtitleTranslator.Api','VideoSubtitleTranslator.Worker'); Get-CimInstance Win32_Process -Filter \"Name = 'dotnet.exe'\" | Where-Object { $cmd = $_.CommandLine; $cmd -and ($targets | Where-Object { $cmd -like ('*' + $_ + '*') }) } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }" >nul 2>&1
 if "%NATS_STARTED%"=="local" taskkill /fi "WINDOWTITLE eq NATS Server" /f >nul 2>&1
 if "%NATS_STARTED%"=="docker" docker stop vst-nats >nul 2>&1
 echo   All services stopped.

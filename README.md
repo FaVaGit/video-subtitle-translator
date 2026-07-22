@@ -29,6 +29,8 @@ Legacy Python files (`main.py`, `cli.py`, `engine.py`) are still in the reposito
 - During active processing, the UI supports direct controls to request cancellation and to open the current job output folder.
 - The top-right status area now shows live job status, progress percent, processing mode, and event-stream state.
 - Translation diagnostics are now explicit in backend logs (HTTP status, response preview, retries, and per-segment fallback counts) to troubleshoot upstream provider instability.
+- Desktop launch scripts start API/Worker in hidden background processes (no extra console windows).
+- The API applies HTTPS redirection only when an HTTPS endpoint is configured, preventing desktop HTTP-only warning noise.
 
 ## Tests
 
@@ -83,6 +85,8 @@ To run desktop outside Python:
     - `scripts\run-desktop.bat`
 - Packaged desktop binary:
     - `scripts\run-desktop-release.bat`
+
+In desktop launch mode the backend is started on HTTP (`http://localhost:5000`) and console windows are kept hidden by the launcher scripts.
 
 `start-app.bat` prefers the packaged desktop runtime and can still run in direct mode when NATS is unavailable.
 Both flows use .NET + Node + Rust and do not require Python.

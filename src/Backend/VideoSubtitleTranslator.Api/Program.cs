@@ -61,6 +61,12 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 var queueState = app.Services.GetRequiredService<QueueRuntimeState>();
+var configuredUrls = builder.Configuration["ASPNETCORE_URLS"]
+    ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
+    ?? string.Empty;
+var hasHttpsEndpointConfigured = configuredUrls
+    .Split(';', StringSplitOptions.RemoveEmptyEntries)
+    .Any(url => url.Trim().StartsWith("https://", StringComparison.OrdinalIgnoreCase));
 
 // Initialize NATS stream
 var publisher = (NatsJobPublisher)app.Services.GetRequiredService<IJobPublisher>();
@@ -88,7 +94,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
-app.UseHttpsRedirection();
+if (hasHttpsEndpointConfigured)
+{
+    app.UseHttpsRedirection();
+}
 app.MapControllers();
 app.MapProgressEndpoints();
 

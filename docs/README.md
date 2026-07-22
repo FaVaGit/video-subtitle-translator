@@ -178,6 +178,9 @@ Linux/macOS:
 ./scripts/run-desktop-release.sh
 ```
 
+Windows desktop launchers start API/Worker as hidden background processes to avoid extra command shell windows.
+When running desktop in HTTP-only mode (`http://localhost:5000`), the API enables HTTPS redirection only if an HTTPS URL is explicitly configured.
+
 ## Features
 
 - **Video Upload**: Supports MP4, MKV, AVI, MOV, WebM (up to 2GB)
