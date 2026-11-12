@@ -20,8 +20,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\VideoSubtitleTranslator.Core\VideoSubtitleTranslator.Core.csproj" />
     <ProjectReference Include="..\VideoSubtitleTranslator.Infrastructure\VideoSubtitleTranslator.Infrastructure.csproj" />
+    <ProjectReference Include="..\VideoSubtitleTranslator.Api\VideoSubtitleTranslator.Api.csproj" />
   </ItemGroup>
 
 </Project>

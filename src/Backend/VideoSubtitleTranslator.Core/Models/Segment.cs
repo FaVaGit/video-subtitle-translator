@@ -7,5 +7,6 @@ public class Segment
     public double EndTime { get; set; }
     public string Text { get; set; } = string.Empty;
     public string? TranslatedText { get; set; }
+    public bool TranslationFailed { get; set; }
     public string Language { get; set; } = string.Empty;
 }

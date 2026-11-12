@@ -54,7 +54,8 @@ public class GoogleTranslateService : ITranslationService
                     StartTime = batch[i].StartTime,
                     EndTime = batch[i].EndTime,
                     Text = batch[i].Text,
-                    TranslatedText = translatedTexts[i],
+                    TranslatedText = translatedTexts[i].Text,
+                    TranslationFailed = translatedTexts[i].Failed,
                     Language = targetLanguage
                 });
             }
@@ -73,17 +74,18 @@ public class GoogleTranslateService : ITranslationService
         return translated;
     }
 
-    private async Task<List<string>> TranslateBatchAsync(
+    private async Task<List<(string Text, bool Failed)>> TranslateBatchAsync(
         List<string> texts, string targetLanguage, CancellationToken ct)
     {
-        var results = new List<string>();
+        var results = new List<(string Text, bool Failed)>();
         var fallbackCount = 0;
 
         for (var i = 0; i < texts.Count; i++)
         {
             var text = texts[i];
             var translated = await TryTranslateWithRetryAsync(text, targetLanguage, ct);
-            if (translated is null)
+            var failed = translated is null;
+            if (failed)
             {
                 // Fail-open at segment level so one transient provider error does
                 // not fail the whole processing pipeline.
@@ -98,7 +100,7 @@ public class GoogleTranslateService : ITranslationService
                     Truncate(text, MaxTextPreviewLength));
             }
 
-            results.Add(translated);
+            results.Add((translated ?? text, failed));
         }
 
         if (fallbackCount > 0)
